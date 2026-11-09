@@ -261,17 +261,17 @@ description: "Lista de tareas para implementar el Agente Inteligente para la Gu�
 
 ### Tests for User Story 6 ⚠️
 
-- [ ] T119 [P] [US6] Pruebas unitarias de CSV en `backend/tests/unit/export/csv.test.ts`: UTF-8 con BOM, separador coma, comillas y saltos `\r\n`, cabecera obligatoria y neutralización de fórmulas (celdas que empiezan por `=`, `+`, `-` o `@` con prefijo `'`)
-- [ ] T120 [P] [US6] Pruebas de integración de exportación en `backend/tests/integration/export.test.ts`: cada conjunto (`activities`, `stage_durations`, `validation_runs`, `criterion_results`, `exceptions`, `agent_interactions`) en CSV y el JSON con metadatos; los datos coinciden con las respuestas de la API (SC-006); `attempts_before_pass`; fechas ISO 8601 UTC con milisegundos y duraciones en segundos; valores ausentes vacíos/`null` (FR-029)
-- [ ] T121 [P] [US6] Pruebas de privacidad de la exportación en `backend/tests/integration/export-privacy.test.ts`: ningún archivo contiene los correos de las cuentas de prueba, hashes, tokens ni claves; solo seudónimos; sin `includeText` no hay textos libres; el proyecto de ejemplo queda excluido por defecto y con `includeSample=true` lleva `is_sample = true`; proyecto vacío o solo de ejemplo → 409; Participante → 403 (FR-028, FR-030, SC-006, SC-007)
-- [ ] T122 [P] [US6] Prueba e2e en `e2e/tests/us6-exportacion.spec.ts`: recorrido completo del escenario, exportación del JSON y de un CSV por el Facilitador y comparación con la pantalla Historial
+- [X] T119 [P] [US6] Pruebas unitarias de CSV en `backend/tests/unit/export/csv.test.ts`: UTF-8 con BOM, separador coma, comillas y saltos `\r\n`, cabecera obligatoria y neutralización de fórmulas (celdas que empiezan por `=`, `+`, `-` o `@` con prefijo `'`)
+- [X] T120 [P] [US6] Pruebas de integración de exportación en `backend/tests/integration/export.test.ts`: cada conjunto (`activities`, `stage_durations`, `validation_runs`, `criterion_results`, `exceptions`, `agent_interactions`) en CSV y el JSON con metadatos; los datos coinciden con las respuestas de la API (SC-006); `attempts_before_pass`; fechas ISO 8601 UTC con milisegundos y duraciones en segundos; valores ausentes vacíos/`null` (FR-029)
+- [X] T121 [P] [US6] Pruebas de privacidad de la exportación en `backend/tests/integration/export-privacy.test.ts`: ningún archivo contiene los correos de las cuentas de prueba, hashes, tokens ni claves; solo seudónimos; sin `includeText` no hay textos libres; el proyecto de ejemplo queda excluido por defecto y con `includeSample=true` lleva `is_sample = true`; proyecto vacío o solo de ejemplo → 409; Participante → 403 (FR-028, FR-030, SC-006, SC-007)
+- [X] T122 [P] [US6] Prueba e2e en `e2e/tests/us6-exportacion.spec.ts`: recorrido completo del escenario, exportación del JSON y de un CSV por el Facilitador y comparación con la pantalla Historial
 
 ### Implementation for User Story 6
 
-- [ ] T123 [P] [US6] Implementar `backend/src/modules/export/csv.ts` (escritura CSV con BOM, escape y neutralización de inyección de fórmulas) y `backend/src/modules/export/datasets.ts` (consultas que producen las columnas de [contracts/export-format.md](contracts/export-format.md) con `user_pseudonym` y sin correo) (FR-027, FR-028)
-- [ ] T124 [US6] Implementar `backend/src/modules/export/service.ts` y `routes.ts`: `GET /projects/:projectId/export?format=json|csv&dataset=&includeSample=&includeText=` solo para Facilitador, metadatos del JSON (`schema_version`, `exported_at`, `catalog_version`…), 409 sin datos, y registro de actividad `export.generated` sin contenido
-- [ ] T125 [US6] Ampliar las pruebas de aislamiento de T028 con la ruta de exportación (los índices necesarios ya están definidos en data-model.md; no se crean índices adicionales)
-- [ ] T126 [P] [US6] Añadir a `frontend/src/pages/history/HistoryPage.tsx` los botones de exportación JSON y CSV por conjunto (solo visibles al Facilitador), las opciones `includeSample` e `includeText` y mensajes claros para el caso 409
+- [X] T123 [P] [US6] Implementar `backend/src/modules/export/csv.ts` (escritura CSV con BOM, escape y neutralización de inyección de fórmulas) y `backend/src/modules/export/datasets.ts` (consultas que producen las columnas de [contracts/export-format.md](contracts/export-format.md) con `user_pseudonym` y sin correo) (FR-027, FR-028)
+- [X] T124 [US6] Implementar `backend/src/modules/export/service.ts` y `routes.ts`: `GET /projects/:projectId/export?format=json|csv&dataset=&includeSample=&includeText=` solo para Facilitador, metadatos del JSON (`schema_version`, `exported_at`, `catalog_version`…), 409 sin datos, y registro de actividad `export.generated` sin contenido
+- [X] T125 [US6] Ampliar las pruebas de aislamiento de T028 con la ruta de exportación (los índices necesarios ya están definidos en data-model.md; no se crean índices adicionales)
+- [X] T126 [P] [US6] Añadir a `frontend/src/pages/history/HistoryPage.tsx` los botones de exportación JSON y CSV por conjunto (solo visibles al Facilitador), las opciones `includeSample` e `includeText` y mensajes claros para el caso 409
 
 **Checkpoint**: Datos exportables y verificables
 

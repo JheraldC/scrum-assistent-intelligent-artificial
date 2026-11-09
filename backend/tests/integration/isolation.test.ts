@@ -47,6 +47,9 @@ const routes: RouteCase[] = [
   { method: 'patch', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}`, body: () => ({ sprintGoal: 'x', expectedVersion: 1 }) },
   { method: 'put', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/items`, body: () => ({ itemIds: [], expectedVersion: 1 }) },
   { method: 'post', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/stages/PLANNING/complete` },
+  // US6: exportación (solo Facilitador)
+  { method: 'get', path: (c) => `/projects/${c.projectId}/export?format=json`, facilitatorOnly: true },
+  { method: 'get', path: (c) => `/projects/${c.projectId}/export?format=csv&dataset=activities`, facilitatorOnly: true },
   // US5: retrospectiva y acciones
   { method: 'get', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/retrospective` },
   { method: 'put', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/retrospective`, body: () => ({ positives: [], problems: [], improvements: [], expectedVersion: 1 }) },

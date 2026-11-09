@@ -5,6 +5,7 @@ import { agentRoutes, createAgentService } from '../modules/agent/index.js';
 import { artifactsRoutes } from '../modules/artifacts/index.js';
 import { authRoutes } from '../modules/auth/index.js';
 import { backlogRoutes } from '../modules/backlog/index.js';
+import { exportRoutes } from '../modules/export/index.js';
 import { flowRoutes, type FlowOptions } from '../modules/flow/index.js';
 import { projectsRoutes } from '../modules/projects/index.js';
 import { sprintsRoutes } from '../modules/sprints/index.js';
@@ -29,6 +30,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       };
       await api.register(flowRoutes, flowOptions);
       await api.register(agentRoutes, { service: agent });
+      await api.register(exportRoutes);
       await api.register(activityRoutes);
     },
     { prefix: '/api/v1' },

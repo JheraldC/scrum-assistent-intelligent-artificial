@@ -76,3 +76,25 @@ export async function api<T = unknown>(path: string, options: RequestOptions = {
   const contentType = res.headers.get('content-type') ?? '';
   return (contentType.includes('json') ? await res.json() : await res.text()) as T;
 }
+
+/** Descarga un archivo del servidor (exportaciones) con la sesión actual y lo guarda en el equipo. */
+export async function downloadFile(path: string): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, { credentials: 'include' });
+  } catch {
+    throw new ApiError(0, null, es.errors.network);
+  }
+  if (!res.ok) throw await toError(res);
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'exportacion';
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return filename;
+}

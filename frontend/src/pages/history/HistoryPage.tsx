@@ -7,6 +7,7 @@ import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
+import { ExportPanel } from './ExportPanel';
 
 const PAGE = 50;
 
@@ -42,6 +43,7 @@ export function HistoryPage() {
 
   return (
     <section>
+      {project.myRole === 'FACILITATOR' ? <ExportPanel projectId={project.id} /> : null}
       <h2 className="mb-3 text-xl font-semibold">{es.history.title}</h2>
       {error ? <ErrorBanner message={error} onRetry={() => void load()} /> : null}
       {loading && items.length === 0 ? <LoadingSkeleton /> : null}
@@ -49,7 +51,10 @@ export function HistoryPage() {
       {items.length > 0 ? (
         <ol className="space-y-2">
           {items.map((item) => (
-            <li key={item.id} className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm">
+            <li
+              key={item.id}
+              className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm"
+            >
               <time dateTime={item.occurredAt} className="mr-2 font-mono text-[var(--color-muted)]">
                 {new Date(item.occurredAt).toLocaleString('es')}
               </time>
@@ -60,7 +65,12 @@ export function HistoryPage() {
         </ol>
       ) : null}
       {hasMore ? (
-        <Button variant="secondary" className="mt-3" disabled={loading} onClick={() => void load(items[items.length - 1]?.id)}>
+        <Button
+          variant="secondary"
+          className="mt-3"
+          disabled={loading}
+          onClick={() => void load(items[items.length - 1]?.id)}
+        >
           {es.history.loadMore}
         </Button>
       ) : null}
