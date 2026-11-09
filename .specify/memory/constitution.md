@@ -1,7 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: (plantilla sin ratificar) → 1.0.0
-- Principios modificados: ninguno renombrado (se definieron los 8 principios iniciales)
+- Version change: 1.0.0 → 2.0.0 (MAJOR: redefinición de una viñeta del Principio VI tras
+  /speckit-analyze; 1.0.0 fue la primera ratificación desde la plantilla)
+- Principios modificados: VI. Rigor Experimental (la viñeta de comparación pasa de «el sistema
+  MUST permitir comparar Scrum sin agente IA y con IA» a «el sistema MUST registrar y exportar datos
+  objetivos para que el equipo compare fuera de la aplicación»; sin modo sin IA ni comparación interna)
 - Secciones añadidas: Principios Fundamentales (I–VIII), Alcance y Restricciones del
   Prototipo, Flujo de Desarrollo y Puertas de Calidad, Gobernanza
 - Secciones eliminadas: ninguna
@@ -62,7 +65,9 @@ Justificación: la reproducibilidad y la confianza exigen controlar la incertidu
 Justificación: las compuertas son el núcleo del experimento; un error en ellas invalida los datos.
 
 ### VI. Rigor Experimental
-- El sistema MUST permitir comparar Scrum sin agente IA y Scrum asistido por IA.
+- El sistema MUST registrar y exportar datos objetivos suficientes para que el equipo compare,
+  fuera de la aplicación, Scrum sin agente IA y Scrum asistido por IA. El producto siempre incluye
+  el agente IA y MUST NOT incorporar modo sin IA ni comparación interna.
 - MUST registrarse datos objetivos, medibles y exportables.
 - Las condiciones de evaluación MUST ser comparables entre ambos grupos.
 - Los datos de demostración MUST estar separados de los datos experimentales.
@@ -118,4 +123,4 @@ Esta constitución prevalece sobre otras prácticas del proyecto.
 - **Cumplimiento**: cada especificación, plan y revisión MUST comprobar el cumplimiento de los
   principios; toda complejidad adicional MUST justificarse.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-09 | **Last Amended**: 2026-11-09
+**Version**: 2.0.0 | **Ratified**: 2026-11-09 | **Last Amended**: 2026-11-09

@@ -49,6 +49,7 @@ Nunca se exportan `email` ni `password_hash` (FR-028).
 | description | text | NOT NULL, ≤ 1 000 |
 | product_goal | text | NOT NULL, ≤ 500 (objetivo del producto) |
 | is_sample | boolean | NOT NULL DEFAULT false (FR-030) |
+| version | integer | NOT NULL DEFAULT 1 (bloqueo optimista, FR-036) |
 | created_by | uuid | FK → user |
 | created_at, updated_at | timestamptz | NOT NULL |
 
@@ -175,6 +176,7 @@ El plan de trabajo se actualiza en `sprint.work_plan` (con control de versión),
 | status | enum `OPEN`, `DONE`, `DISCARDED` | NOT NULL DEFAULT 'OPEN' |
 | follow_up_note | text | NOT NULL DEFAULT '' |
 | follow_up_updated_at | timestamptz | NULL hasta que alguien actualiza el seguimiento |
+| version | integer | NOT NULL DEFAULT 1 (bloqueo optimista, FR-036) |
 | created_at | timestamptz | NOT NULL |
 
 RETRO-05 se evalúa sobre las acciones del Sprint anterior: se considera "con seguimiento" si
@@ -196,6 +198,12 @@ RETRO-05 se evalúa sobre las acciones del Sprint anterior: se considera "con se
 | ai_status | enum `OK`, `NOT_REQUESTED`, `TIMEOUT`, `PROVIDER_ERROR`, `INVALID_RESPONSE`, `BUDGET_EXCEEDED` | NOT NULL |
 | requested_by | uuid | FK → user |
 | started_at, finished_at | timestamptz | NOT NULL |
+
+`ai_status` se fija al crear la evaluación (`NOT_REQUESTED` salvo que se pida IA en esa misma
+solicitud). Como `validation_run` es de solo inserción, la retroalimentación pedida **después** (bajo
+demanda, `POST .../validations/{id}/ai-feedback`) no modifica la fila: se guarda como
+`agent_interaction` de tipo `VALIDATION_FEEDBACK` ligada a la evaluación y la API deriva `aiStatus`
+de la interacción más reciente. No crea un nuevo intento.
 
 `UNIQUE (project_id, gate_id, target_type, target_id, attempt_no)`. `attempt_no` se asigna dentro de
 una transacción que bloquea el objetivo (`SELECT ... FOR UPDATE` de la fila del artefacto), de modo que

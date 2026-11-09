@@ -65,7 +65,7 @@ incremental (el desglose en tareas corresponde a `/speckit-tasks`).
 | III. Calidad de validaciones Scrum | Scrum Guide 2020 como referencia; criterios marcados `OFFICIAL`/`ADDITIONAL`; reglas deterministas; IA solo asesora y etiquetada; solo 2 bloqueos, declarados como controles del prototipo | ✅ |
 | IV. IA responsable | Esquema validado, errores/timeout gestionados, clave solo en servidor, modelo y configuración registrados, aviso de no garantizado | ✅ |
 | V. Testing | Unitarias, integración, funcionales, concurrencia, aislamiento; foco en reglas y compuertas; IA simulada solo en pruebas | ✅ |
-| VI. Rigor experimental | Registro objetivo y exportación; seudónimos; sin valores inventados; datos de ejemplo marcados y excluidos; **sin** comparación dentro del software (decisión de la spec) | ✅ |
+| VI. Rigor experimental | Registro objetivo y exportación; seudónimos; sin valores inventados; datos de ejemplo marcados y excluidos; **sin** comparación dentro del software (decisión de la spec, recogida en la Constitución v2.0.0: el sistema exporta datos para la comparación externa) | ✅ |
 | VII. Usabilidad | Interfaz en español, responsiva, orientación para novatos, estados visuales, accesibilidad verificada | ✅ |
 | VIII. Documentación y reproducibilidad | README, arquitectura, contratos, modelo de datos, `quickstart.md`, diagramas | ✅ |
 
@@ -300,6 +300,9 @@ prompt o aprobar la compuerta) comprobando que no cambian ningún estado (ver D-
 
 ### Costos, límites, versionado
 
+- **La retroalimentación de IA se pide bajo demanda** (botón «Pedir recomendación de IA» →
+  `POST .../validations/{id}/ai-feedback`), no en cada evaluación, para no gastar el cupo diario;
+  `requestAiFeedback` en `POST /validations` queda en `false` por defecto.
 - Límites: tamaño de mensaje (2 000 caracteres), tokens máximos de salida, historial acotado,
   solicitudes por minuto por persona, **presupuesto diario global** de tokens (por debajo del cupo
   gratuito de Groq, que es por organización y modelo) y **presupuesto diario por proyecto** (fracción
@@ -426,7 +429,9 @@ evidencia experimental (Principio V); prueba de contrato contra el proveedor rea
 | Aislamiento entre proyectos | Integración | Un usuario no lee ni escribe datos de proyectos ajenos (404) por cada endpoint con `projectId`, incluidos IDs cruzados de otro proyecto en el cuerpo | FR-035, SC-005 |
 | Concurrencia | Integración | Dos `PATCH` con la misma versión (uno 409); dos evaluaciones simultáneas con intentos distintos; cambios simultáneos de rol conservan un Facilitador; dos Sprints abiertos imposibles | FR-036, FR-014, SC-003 |
 | Exportación | Integración | CSV y JSON coinciden con la API (SC-006); sin correos ni tokens; vacíos permanecen vacíos; ejemplo excluido; fórmulas neutralizadas; Participante recibe 403 | FR-026–FR-030, SC-006, SC-007 |
-| Entradas inválidas | Unitaria/Integración | Longitudes, tipos, caracteres especiales, cuerpos mal formados → 422 con mensajes en español | FR-033 |
+| Entradas inválidas | Unitaria/Integración | Longitudes, tipos, caracteres especiales, cuerpos mal formados → 422 con mensajes en español, recorriendo todos los endpoints | FR-033 |
+| Contrato OpenAPI | Integración | Las respuestas reales de los endpoints principales validan contra `contracts/openapi.yaml` (sin divergencias) | Todos los FR de API |
+| Rendimiento (humo) | Carga ligera | ~50 sesiones concurrentes con `fetch`; p95 < 500 ms sin IA; evaluación de compuerta < 1 s | Metas del plan |
 | Flujos principales | E2E (Playwright) | Recorrido completo: registro → proyecto → historias → Sprint Goal → evaluación fallida → corrección → aprobación → seguimiento → review → retrospectiva → exportación | SC-001, SC-002, SC-003, SC-006 |
 | Asistente en la interfaz | E2E | Pregunta con respuesta etiquetada y aviso; IA caída muestra error y las reglas siguen; no se modifican artefactos | FR-020–FR-024, SC-009 |
 | Usabilidad y accesibilidad | E2E + lint | Ancho 375 px sin desplazamiento horizontal; `axe` sin violaciones graves; textos en español | FR-031, FR-032, SC-010 |

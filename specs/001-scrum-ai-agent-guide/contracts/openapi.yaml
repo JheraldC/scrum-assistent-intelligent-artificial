@@ -105,10 +105,10 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
     patch:
       tags: [Proyectos y miembros]
-      summary: Editar datos del proyecto (solo Facilitador)
+      summary: Editar datos del proyecto con control de versión (solo Facilitador; FR-036)
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/ProjectInput' } } }
+        content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ProjectInput' }, { $ref: '#/components/schemas/ExpectedVersion' }] } } }
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } } }
         '403': { $ref: '#/components/responses/Problem' }
@@ -346,12 +346,13 @@ paths:
       - { name: actionId, in: path, required: true, schema: { type: string, format: uuid } }
     patch:
       tags: [Artefactos del Sprint]
-      summary: Editar la acción o actualizar su seguimiento (estado y nota)
+      summary: Editar la acción o actualizar su seguimiento (estado y nota), con control de versión (FR-036)
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/RetroActionInput' } } }
+        content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/RetroActionInput' }, { $ref: '#/components/schemas/ExpectedVersion' }] } } }
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RetroAction' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /criteria-catalog:
     get:
@@ -374,7 +375,7 @@ paths:
       summary: Evaluar una compuerta sobre un objetivo (FR-012, FR-014, FR-015). Crea un nuevo intento y devuelve resultados por criterio; la retroalimentación de IA es opcional y no afecta el estado.
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [gateId, targetType, targetId], properties: { gateId: { $ref: '#/components/schemas/GateId' }, targetType: { $ref: '#/components/schemas/TargetType' }, targetId: { type: string, format: uuid }, requestAiFeedback: { type: boolean, default: true } } } } }
+        content: { application/json: { schema: { type: object, required: [gateId, targetType, targetId], properties: { gateId: { $ref: '#/components/schemas/GateId' }, targetType: { $ref: '#/components/schemas/TargetType' }, targetId: { type: string, format: uuid }, requestAiFeedback: { type: boolean, default: false, description: 'Por defecto no se consulta a la IA (ahorra el cupo diario); se pide bajo demanda en /validations/{validationId}/ai-feedback' } } } } }
       responses:
         '201': { description: Evaluación registrada, content: { application/json: { schema: { $ref: '#/components/schemas/ValidationRun' } } } }
         '404': { $ref: '#/components/responses/Problem' }
@@ -405,6 +406,18 @@ paths:
         '409': { description: 'La evaluación no está en FAILED o está desactualizada', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
         '422': { $ref: '#/components/responses/Problem' }
 
+  /projects/{projectId}/validations/{validationId}/ai-feedback:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { name: validationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Validación]
+      summary: Pedir retroalimentación de IA sobre una evaluación existente (bajo demanda; no crea un nuevo intento ni cambia el estado de la compuerta)
+      responses:
+        '200': { description: Observaciones de IA validadas (o aiStatus con el error), content: { application/json: { schema: { $ref: '#/components/schemas/ValidationRun' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+        '502': { description: 'IA no disponible, respuesta inválida o tiempo agotado; la evaluación por reglas no cambia', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /projects/{projectId}/agent/chat:
     parameters: [{ $ref: '#/components/parameters/projectId' }]
     post:
@@ -501,8 +514,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/ProjectInput'
         - type: object
-          required: [id, isSample, createdAt]
-          properties: { id: { type: string, format: uuid }, isSample: { type: boolean }, createdAt: { type: string, format: date-time } }
+          required: [id, isSample, createdAt, version]
+          properties: { id: { type: string, format: uuid }, isSample: { type: boolean }, version: { type: integer }, createdAt: { type: string, format: date-time } }
     ProjectStatus: { type: string, enum: [SIN_SPRINT, EN_CURSO, REQUIERE_CORRECCION, CERRADO] }
     ProjectSummary:
       allOf:
@@ -625,7 +638,7 @@ components:
         - $ref: '#/components/schemas/RetroActionInput'
         - type: object
           required: [id]
-          properties: { id: { type: string, format: uuid }, followUpUpdatedAt: { type: [string, 'null'], format: date-time } }
+          properties: { id: { type: string, format: uuid }, version: { type: integer }, followUpUpdatedAt: { type: [string, 'null'], format: date-time } }
     Retrospective:
       allOf:
         - $ref: '#/components/schemas/RetrospectiveInput'

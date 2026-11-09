@@ -28,6 +28,7 @@ Los equipos novatos suelen omitir o ejecutar de forma incompleta los eventos y a
 - Q: ¿Quién puede crear un proyecto nuevo? → A: Cualquier persona con cuenta; quien lo crea queda como Facilitador de ese proyecto.
 - Q: ¿Puede un proyecto tener varios Sprints dentro del MVP? → A: Sí, varios Sprints consecutivos con uno abierto a la vez; el Facilitador crea el siguiente al cerrar el anterior; sin métricas de velocidad.
 - Q: ¿El registro es abierto o con invitación? → A: Registro abierto: cualquier persona puede crear una cuenta; el consumo de IA se acota con límites de uso.
+- Q: ¿Qué decisiones se tomaron tras el análisis de coherencia (/speckit-analyze)? → A: Constitución enmendada a la v2.0.0 (comparación externa); SC-001 con máximo de 90 minutos; explicaciones de máximo 3 líneas; se acepta revelar si una cuenta existe; agregar por correo sin cuenta se rechaza; control de versión también en proyecto y acciones de retrospectiva; la retroalimentación de IA se pide bajo demanda.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -159,7 +160,8 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 - Modificar un artefacto ya validado: la etapa pasa a "requiere corrección" o exige reevaluar; el historial conserva ambas versiones.
 - Dos personas editan a la vez el mismo artefacto: se avisa del conflicto sin perder cambios en silencio.
 - Servicio de IA con tiempo agotado, respuesta con formato inválido o sin credenciales: se muestra error, las reglas siguen operando y se registra el incidente.
-- Credenciales incorrectas, correo ya registrado o contraseña débil: mensajes claros sin revelar información sensible.
+- Credenciales incorrectas, correo ya registrado o contraseña débil: mensajes claros; el inicio de sesión no distingue entre correo inexistente y contraseña errónea.
+- Agregar a un proyecto un correo sin cuenta registrada: se rechaza con el mensaje «La persona debe registrarse primero»; no se envían invitaciones.
 - Uso excesivo del asistente (por una persona o un proyecto): se rechaza con mensaje claro al superar el límite; las reglas siguen operativas.
 - Persona eliminada de un proyecto: pierde el acceso; los artefactos que creó se conservan.
 - Exportar un proyecto sin datos o solo con datos de ejemplo: se informa y no se genera un archivo engañoso.
@@ -178,7 +180,7 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 **Flujo guiado**
 - **FR-005**: El sistema MUST presentar un flujo visual con las etapas de planificación, seguimiento, revisión y retrospectiva, cada una con estado: pendiente, en progreso, requiere corrección o validada.
 - **FR-006**: El sistema MUST permitir registrar la evidencia asociada a cada actividad.
-- **FR-007**: La interfaz MUST orientar a equipos sin experiencia en Scrum con explicaciones breves de cada etapa y criterio, sin sustituir las responsabilidades del equipo.
+- **FR-007**: La interfaz MUST orientar a equipos sin experiencia en Scrum con una explicación de cada etapa y de cada criterio de máximo 3 líneas, sin sustituir las responsabilidades del equipo.
 
 **Product Backlog e historias**
 - **FR-008**: El sistema MUST permitir crear, modificar y consultar elementos del Product Backlog, incluidas historias de usuario con criterios de aceptación.
@@ -220,7 +222,7 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 - **FR-033**: El sistema MUST validar todas las entradas y mostrar mensajes de error comprensibles.
 - **FR-034**: Los datos MUST persistir de forma centralizada y estar disponibles desde cualquier dispositivo con acceso a la aplicación en internet.
 - **FR-035**: El sistema MUST soportar varios equipos simultáneos sin que los datos de un proyecto sean visibles en otro al que la persona no pertenece.
-- **FR-036**: Cuando dos personas editen el mismo artefacto a la vez, el sistema MUST evitar la pérdida silenciosa de cambios (p. ej. avisando del conflicto antes de sobrescribir).
+- **FR-036**: Cuando dos personas editen a la vez el mismo artefacto, los datos del proyecto o una acción de retrospectiva, el sistema MUST evitar la pérdida silenciosa de cambios (p. ej. avisando del conflicto antes de sobrescribir).
 - **FR-037**: Las credenciales del servicio de IA y las contraseñas MUST protegerse y no exponerse en la interfaz, registros ni exportaciones.
 
 ### Funcionalidades Simplificadas en el MVP
@@ -258,7 +260,7 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 
 ### Measurable Outcomes
 
-- **SC-001**: Un Participante nuevo completa el recorrido (crear proyecto, historias, Sprint Goal, validación, corrección y retrospectiva) en una sola sesión sin asistencia técnica.
+- **SC-001**: Un Participante nuevo completa el recorrido (crear proyecto, historias, Sprint Goal, validación, corrección y retrospectiva) en una sola sesión de máximo 90 minutos sin asistencia técnica.
 - **SC-002**: En un conjunto de casos de prueba con defectos conocidos (historias, Sprint Goals y retrospectivas), el 100 % de los incumplimientos definidos en las reglas se detecta y se explica.
 - **SC-003**: El 100 % de los intentos de avanzar con criterios obligatorios incumplidos y sin excepción es rechazado, y el 100 % de las compuertas puede reevaluarse tras corregir.
 - **SC-004**: El 100 % de los proyectos, artefactos, validaciones e interacciones creados sigue disponible tras cerrar sesión y volver a entrar desde otro dispositivo.
@@ -273,6 +275,7 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 ## Assumptions
 
 - La aplicación se despliega en internet y varios equipos la usan a la vez con datos centralizados; la edición colaborativa en tiempo real queda fuera del MVP, pero se evita la pérdida silenciosa de cambios.
+- Por ser un prototipo de uso académico, se acepta que el registro con un correo ya existente y la acción de agregar miembros por correo revelen si una cuenta existe.
 - Todas las personas usan una cuenta con correo y contraseña; el Facilitador (Scrum Master) asigna los roles por proyecto. Cada cuenta tiene un seudónimo generado automáticamente que se usa en las exportaciones.
 - El producto siempre incluye el agente de IA; el experimento (Scrum tradicional vs. con IA) y la rúbrica se gestionan manualmente fuera de la aplicación con los datos exportados.
 - Las compuertas por reglas están siempre activas; las excepciones manuales solo las autoriza el Facilitador del proyecto.
