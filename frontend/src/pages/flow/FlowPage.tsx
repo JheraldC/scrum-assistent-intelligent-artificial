@@ -32,8 +32,8 @@ export function FlowPage() {
       <section>
         {failure ? <ErrorBanner message={failure.message} /> : null}
         <EmptyState
-          title={es.flow.noSprint}
-          description={es.flow.noSprintHelp}
+          title={project.status === 'CERRADO' ? es.flow.sprintClosed : es.flow.noSprint}
+          description={project.status === 'CERRADO' ? es.flow.sprintClosedHelp : es.flow.noSprintHelp}
           action={
             project.myRole === 'FACILITATOR' ? (
               <Button onClick={() => void createSprint()}>{es.flow.createSprint}</Button>
@@ -54,6 +54,13 @@ export function FlowPage() {
         stages={sprint.stages}
         renderStage={(stage) => (
           <>
+            {stage.type === 'RETROSPECTIVE' ? (
+              <p className="mb-3">
+                <Link className="underline" to={`/proyectos/${project.id}/sprint/retrospectiva`}>
+                  {es.retro.title}
+                </Link>
+              </p>
+            ) : null}
             {stage.type === 'PLANNING' ? (
               <p className="mb-3">
                 <Link className="underline" to={`/proyectos/${project.id}/sprint/planificacion`}>

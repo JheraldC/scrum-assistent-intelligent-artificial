@@ -8,3 +8,4 @@ export * from './schemas/validation.js';
 export * from './schemas/sprint.js';
 export * from './schemas/exception.js';
 export * from './schemas/agent.js';
+export * from './schemas/retrospective.js';

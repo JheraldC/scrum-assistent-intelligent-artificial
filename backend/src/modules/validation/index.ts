@@ -5,3 +5,4 @@ export { deriveGateState, type LatestRun } from './gate-state.js';
 export type { RuleFn, RuleOutput, RuleSet } from './rules/types.js';
 export { STORY_RULES, findVagueTerms, type StorySnapshot } from './rules/story.js';
 export { PLAN_RULES, type PlanItem, type PlanSnapshot } from './rules/plan.js';
+export { RETRO_RULES, type RetroActionSnapshot, type RetroSnapshot } from './rules/retro.js';

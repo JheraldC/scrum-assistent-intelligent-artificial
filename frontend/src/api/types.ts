@@ -137,3 +137,27 @@ export interface AgentReply {
   source: 'AI_RECOMMENDATION';
   model: string;
 }
+
+export interface RetroAction {
+  id: string;
+  description: string;
+  ownerId: string | null;
+  ownerPseudonym: string | null;
+  forNextSprint: boolean;
+  status: 'OPEN' | 'DONE' | 'DISCARDED';
+  followUpNote: string;
+  followUpUpdatedAt: string | null;
+  version: number;
+}
+
+export interface Retrospective {
+  positives: string[];
+  problems: string[];
+  improvements: string[];
+  version: number;
+  gateState: GateState;
+  sprintStatus: 'OPEN' | 'CLOSED';
+  actions: RetroAction[];
+  previousSprint: { id: string; number: number } | null;
+  previousActions: RetroAction[];
+}

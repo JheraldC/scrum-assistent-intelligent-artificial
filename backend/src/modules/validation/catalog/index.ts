@@ -31,6 +31,18 @@ const planCriteria: CriterionDef[] = [
   { id: 'PLAN-07', title: 'Las historias seleccionadas tienen una evaluación aprobada vigente', origin: 'ADDITIONAL', mandatory: true, dimension: 'completitud' },
 ];
 
+const RETRO_NOTE =
+  'La Scrum Guide 2020 indica que la Sprint Retrospective identifica los cambios más útiles para mejorar la efectividad del equipo.';
+
+const retroCriteria: CriterionDef[] = [
+  { id: 'RETRO-01', title: 'Se identificó al menos una mejora (acción)', origin: 'OFFICIAL', mandatory: true, scrumGuideNote: RETRO_NOTE },
+  { id: 'RETRO-02', title: 'Hay al menos un aspecto positivo y un problema registrados', origin: 'ADDITIONAL', mandatory: true, dimension: 'completitud' },
+  { id: 'RETRO-03', title: 'Cada acción tiene al menos 5 palabras y no usa términos vagos', origin: 'ADDITIONAL', mandatory: true, dimension: 'claridad' },
+  { id: 'RETRO-04', title: 'Cada acción tiene un responsable', origin: 'ADDITIONAL', mandatory: true, dimension: 'completitud' },
+  { id: 'RETRO-05', title: 'Las acciones del Sprint anterior tienen seguimiento actualizado', origin: 'ADDITIONAL', mandatory: true, dimension: 'coherencia' },
+  { id: 'RETRO-06', title: 'Al menos una acción está marcada para el siguiente Sprint', origin: 'ADDITIONAL', mandatory: false, dimension: 'completitud' },
+];
+
 /** Las compuertas se añaden a medida que se implementan sus historias (GATE-PLAN, GATE-REVIEW, GATE-RETRO). */
 export const GATES: GateDef[] = [
   {
@@ -47,6 +59,14 @@ export const GATES: GateDef[] = [
     // Control del prototipo (no una regla de Scrum): bloquea iniciar el seguimiento del Sprint.
     blocking: true,
     criteria: planCriteria,
+  },
+  {
+    gateId: 'GATE-RETRO',
+    title: 'Retrospectiva del Sprint',
+    targetType: 'RETROSPECTIVE',
+    // Control del prototipo (no una regla de Scrum): bloquea el cierre del Sprint.
+    blocking: true,
+    criteria: retroCriteria,
   },
 ];
 

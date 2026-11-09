@@ -209,6 +209,11 @@ export class AgentService {
       if (!sprint) return null;
       label = `Sprint ${sprint.number}`;
       snapshot = { sprintGoal: sprint.sprintGoal, planDeTrabajo: sprint.workPlan, elementos: sprint.items.map((i) => `${i.backlogItem.code} ${i.backlogItem.title}`) };
+    } else if (targetType === 'RETROSPECTIVE') {
+      const retro = await db.retrospective.findFirst({ where: { sprintId: targetId, sprint: { projectId } }, include: { sprint: true, actions: true } });
+      if (!retro) return null;
+      label = `Retrospectiva del Sprint ${retro.sprint.number}`;
+      snapshot = { positivos: retro.positives, problemas: retro.problems, mejoras: retro.improvements, acciones: retro.actions.map((a) => `${a.description} (${a.ownerId ? 'con responsable' : 'sin responsable'})`) };
     } else {
       return null;
     }

@@ -1,12 +1,20 @@
+import { useEffect } from 'react';
 import { es } from '../../i18n/es';
 
 interface Props {
   message: string;
   onClose: () => void;
+  /** Se cierra sola para no tapar el contenido (por defecto 5 s). */
+  autoCloseMs?: number;
 }
 
-/** Aviso de éxito no intrusivo; `aria-live` lo anuncia sin quitar el foco. */
-export function Toast({ message, onClose }: Props) {
+/** Aviso de éxito no intrusivo; `aria-live` lo anuncia sin quitar el foco y se cierra solo. */
+export function Toast({ message, onClose, autoCloseMs = 5000 }: Props) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, autoCloseMs);
+    return () => clearTimeout(timer);
+  }, [message, autoCloseMs, onClose]);
+
   return (
     <div
       role="status"

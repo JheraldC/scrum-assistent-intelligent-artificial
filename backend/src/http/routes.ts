@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { registerCsrfProtection } from '../platform/csrf.js';
 import { activityRoutes } from '../modules/activity/index.js';
 import { agentRoutes, createAgentService } from '../modules/agent/index.js';
+import { artifactsRoutes } from '../modules/artifacts/index.js';
 import { authRoutes } from '../modules/auth/index.js';
 import { backlogRoutes } from '../modules/backlog/index.js';
 import { flowRoutes, type FlowOptions } from '../modules/flow/index.js';
@@ -20,6 +21,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       await api.register(authRoutes);
       await api.register(projectsRoutes);
       await api.register(sprintsRoutes);
+      await api.register(artifactsRoutes);
       await api.register(backlogRoutes);
       const agent = createAgentService(app, app.llm);
       const flowOptions: FlowOptions = {

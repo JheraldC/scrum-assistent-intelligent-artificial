@@ -92,6 +92,14 @@ enum AgentStatus {
   @@map("agent_status")
 }
 
+enum RetroActionStatus {
+  OPEN
+  DONE
+  DISCARDED
+
+  @@map("retro_action_status")
+}
+
 enum StageType {
   PLANNING
   TRACKING
@@ -126,6 +134,7 @@ model User {
   validationsAsked  ValidationRun[]
   exceptionsGranted GateException[]
   agentInteractions AgentInteraction[]
+  retroActionsOwned RetroAction[]
 
   @@map("user")
 }
@@ -193,9 +202,10 @@ model Sprint {
   updatedAt  DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
   closedAt   DateTime?    @map("closed_at") @db.Timestamptz(6)
 
-  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  stages  SprintStage[]
-  items   SprintItem[]
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stages        SprintStage[]
+  items         SprintItem[]
+  retrospective Retrospective?
 
   @@unique([projectId, number])
   @@map("sprint")
@@ -370,4 +380,38 @@ model AgentInteraction {
   @@index([projectId, userId, createdAt])
   @@index([createdAt])
   @@map("agent_interaction")
+}
+
+model Retrospective {
+  sprintId     String   @id @map("sprint_id") @db.Uuid
+  positives    String[] @default([])
+  problems     String[] @default([])
+  improvements String[] @default([])
+  version      Int      @default(1)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  sprint  Sprint        @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  actions RetroAction[]
+
+  @@map("retrospective")
+}
+
+model RetroAction {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sprintId          String            @map("sprint_id") @db.Uuid
+  description       String
+  ownerId           String?           @map("owner_id") @db.Uuid
+  forNextSprint     Boolean           @default(false) @map("for_next_sprint")
+  status            RetroActionStatus @default(OPEN)
+  followUpNote      String            @default("") @map("follow_up_note")
+  followUpUpdatedAt DateTime?         @map("follow_up_updated_at") @db.Timestamptz(6)
+  version           Int               @default(1)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  retrospective Retrospective @relation(fields: [sprintId], references: [sprintId], onDelete: Cascade)
+  owner         User?         @relation(fields: [ownerId], references: [id])
+
+  @@index([sprintId])
+  @@map("retro_action")
 }

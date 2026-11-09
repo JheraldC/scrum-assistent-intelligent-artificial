@@ -14,16 +14,21 @@ const withStages = { stages: true, items: { select: { backlogItemId: true } } } 
 /** Compuerta bloqueante de cada etapa (solo planificación y retrospectiva; el resto no bloquea). */
 export const STAGE_GATES: Partial<Record<StageType, { gateId: 'GATE-PLAN' | 'GATE-RETRO'; targetType: 'SPRINT' | 'RETROSPECTIVE' }>> = {
   PLANNING: { gateId: 'GATE-PLAN', targetType: 'SPRINT' },
+  RETROSPECTIVE: { gateId: 'GATE-RETRO', targetType: 'RETROSPECTIVE' },
 };
 
 type SprintWithRelations = Prisma.SprintGetPayload<{ include: typeof withStages }>;
 
 /** Estado derivado de las compuertas de las etapas que la tienen. */
 async function stageGateStates(tx: Tx, projectId: string, sprint: SprintWithRelations): Promise<Partial<Record<StageType, GateState>>> {
-  const runs = await latestRuns(tx, projectId, 'SPRINT', [sprint.id]);
-  const run = runs.get(sprint.id);
-  const latest = run ? { status: run.status, targetVersion: run.targetVersion, hasException: run.hasException } : null;
-  return { PLANNING: deriveGateState(latest, sprint.version) };
+  const planRun = (await latestRuns(tx, projectId, 'SPRINT', [sprint.id])).get(sprint.id);
+  const retroRun = (await latestRuns(tx, projectId, 'RETROSPECTIVE', [sprint.id])).get(sprint.id);
+  const retro = await tx.retrospective.findUnique({ where: { sprintId: sprint.id } });
+  const latest = (run: typeof planRun) => (run ? { status: run.status, targetVersion: run.targetVersion, hasException: run.hasException } : null);
+  return {
+    PLANNING: deriveGateState(latest(planRun), sprint.version),
+    RETROSPECTIVE: deriveGateState(latest(retroRun), retro?.version ?? 1),
+  };
 }
 
 async function toDto(tx: Tx, projectId: string, sprint: SprintWithRelations): Promise<SprintDto> {

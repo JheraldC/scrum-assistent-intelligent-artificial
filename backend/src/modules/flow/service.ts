@@ -4,6 +4,7 @@ import { withTransaction, type Db, type Tx } from '../../platform/db.js';
 import type { Clock } from '../../platform/clock.js';
 import { latestRuns } from '../../platform/runs.js';
 import { ActivityRecorder } from '../activity/index.js';
+import { getRetroSnapshot } from '../artifacts/index.js';
 import { getItemSnapshot } from '../backlog/index.js';
 import { applyStageEvent, assertTrackingAllowed, getPlanSnapshot, STAGE_GATES } from '../sprints/index.js';
 import { CATALOG_VERSION, deriveGateState, evaluate, getGate, GATES, type EngineRun } from '../validation/index.js';
@@ -142,6 +143,7 @@ const LOADERS: Partial<Record<TargetType, (tx: Tx, projectId: string, targetId: 
     const plan = await getPlanSnapshot(tx, projectId, targetId);
     return plan ? { version: plan.version, snapshot: plan.snapshot, closed: plan.status === 'CLOSED' } : null;
   },
+  RETROSPECTIVE: (tx, projectId, targetId) => getRetroSnapshot(tx, projectId, targetId),
 };
 
 /** Etapa cuyo estado depende del resultado de una compuerta. */
@@ -241,6 +243,7 @@ export async function getRun(db: Db, projectId: string, runId: string) {
 
 async function currentVersion(tx: Tx, targetType: TargetType, targetId: string): Promise<number | null> {
   if (targetType === 'SPRINT') return (await tx.sprint.findUnique({ where: { id: targetId } }))?.version ?? null;
+  if (targetType === 'RETROSPECTIVE') return (await tx.retrospective.findUnique({ where: { sprintId: targetId } }))?.version ?? null;
   return null;
 }
 
@@ -318,25 +321,22 @@ export async function completeStage(
     if (stageType === 'TRACKING') await assertTrackingAllowed(tx, sprintId);
     if (stage.status === 'VALIDATED') throw AppError.conflict('La etapa ya está validada.');
 
-    if (stageType === 'RETROSPECTIVE') {
-      // La compuerta de la retrospectiva se incorpora con la historia US5.
-      throw new AppError('GATE_NOT_PASSED', 409, 'La retrospectiva aún no tiene una evaluación aprobada.');
-    }
-
     const gate = STAGE_GATES[stageType];
     if (gate) {
       const run = (await latestRuns(tx, projectId, gate.targetType, [sprintId])).get(sprintId);
+      const version = (await currentVersion(tx, gate.targetType, sprintId)) ?? sprint.version;
       const state = deriveGateState(
         run ? { status: run.status, targetVersion: run.targetVersion, hasException: run.hasException } : null,
-        sprint.version,
+        version,
       );
       if (state !== 'APROBADA' && state !== 'APROBADA_CON_EXCEPCION') {
+        const what = stageType === 'PLANNING' ? 'La planificación' : 'La retrospectiva';
         throw new AppError(
           'GATE_NOT_PASSED',
           409,
           state === 'DESACTUALIZADA'
-            ? 'La planificación cambió después de la última evaluación. Evalúela de nuevo antes de avanzar.'
-            : 'La planificación aún no cumple los criterios obligatorios. Corrija y evalúe de nuevo, o pida una excepción al Facilitador.',
+            ? `${what} cambió después de la última evaluación. Evalúela de nuevo antes de avanzar.`
+            : `${what} aún no cumple los criterios obligatorios. Corrija y evalúe de nuevo, o pida una excepción al Facilitador.`,
         );
       }
     }
@@ -345,6 +345,7 @@ export async function completeStage(
     const completed = await applyStageEvent(tx, clock, sprintId, stageType, 'complete');
     if (!completed) throw new AppError('STAGE_ORDER', 409, 'La etapa no se puede completar en su estado actual.');
 
+    const now = clock.now();
     await ActivityRecorder.record(tx, {
       projectId,
       actorId,
@@ -352,8 +353,21 @@ export async function completeStage(
       entityType: 'sprint_stage',
       entityId: completed.id,
       payload: { stage: stageType },
-      occurredAt: clock.now(),
+      occurredAt: now,
     });
+    // Al validar la retrospectiva el Sprint se cierra en la misma operación (permite crear el siguiente).
+    if (stageType === 'RETROSPECTIVE') {
+      await tx.sprint.update({ where: { id: sprintId }, data: { status: 'CLOSED', closedAt: now, updatedAt: now } });
+      await ActivityRecorder.record(tx, {
+        projectId,
+        actorId,
+        action: 'sprint.closed',
+        entityType: 'sprint',
+        entityId: sprintId,
+        payload: { number: sprint.number },
+        occurredAt: now,
+      });
+    }
     return {
       type: completed.type,
       status: completed.status,

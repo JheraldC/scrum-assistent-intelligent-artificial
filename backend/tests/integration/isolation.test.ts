@@ -47,6 +47,11 @@ const routes: RouteCase[] = [
   { method: 'patch', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}`, body: () => ({ sprintGoal: 'x', expectedVersion: 1 }) },
   { method: 'put', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/items`, body: () => ({ itemIds: [], expectedVersion: 1 }) },
   { method: 'post', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/stages/PLANNING/complete` },
+  // US5: retrospectiva y acciones
+  { method: 'get', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/retrospective` },
+  { method: 'put', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/retrospective`, body: () => ({ positives: [], problems: [], improvements: [], expectedVersion: 1 }) },
+  { method: 'post', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/retrospective/actions`, body: () => ({ description: 'Una acción de prueba del equipo' }) },
+  { method: 'patch', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/retrospective/actions/${c.otherUserId}`, body: () => ({ description: 'Cambio de prueba de la acción', expectedVersion: 1 }) },
   { method: 'post', path: (c) => `/projects/${c.projectId}/validations/${c.otherUserId}/exception`, body: () => ({ justification: 'una justificación válida' }), facilitatorOnly: true },
 ];
 

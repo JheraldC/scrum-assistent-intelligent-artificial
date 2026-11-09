@@ -64,3 +64,59 @@ export const evaluatePlan = (s: Scenario, user: TestUser = s.ana) =>
 
 export const completeStage = (s: Scenario, type: string, user: TestUser = s.ana) =>
   user.client.post(`${s.base}/stages/${type}/complete`);
+
+// ---------------------------------------------------------------------------------------------
+// Retrospectiva (US5)
+// ---------------------------------------------------------------------------------------------
+
+export const retroBuena = {
+  positives: ['El equipo se comunicó bien durante el Sprint'],
+  problems: ['Las reuniones diarias se alargaron demasiado'],
+  improvements: ['Limitar la reunión diaria a quince minutos'],
+};
+
+export const accionBuena = {
+  description: 'Limitar cada reunión diaria a quince minutos con temporizador',
+  forNextSprint: true,
+};
+
+export interface RetroDto {
+  positives: string[];
+  problems: string[];
+  improvements: string[];
+  version: number;
+  gateState: string;
+  actions: {
+    id: string;
+    description: string;
+    ownerId: string | null;
+    ownerPseudonym: string | null;
+    forNextSprint: boolean;
+    status: string;
+    followUpNote: string;
+    followUpUpdatedAt: string | null;
+    version: number;
+  }[];
+}
+
+export const retroUrl = (s: Scenario) => `${s.base}/retrospective`;
+
+export async function getRetro(s: Scenario, user: TestUser = s.ana): Promise<RetroDto> {
+  return (await user.client.get(retroUrl(s))).json() as RetroDto;
+}
+
+/** Rellena la retrospectiva y añade una acción buena con responsable; devuelve la retrospectiva final. */
+export async function fillRetro(s: Scenario, options: { withAction?: boolean; ownerId?: string | null } = {}): Promise<RetroDto> {
+  const retro = await getRetro(s);
+  const put = await s.ana.client.put(retroUrl(s), { ...retroBuena, expectedVersion: retro.version });
+  if (put.statusCode !== 200) throw new Error(`PUT de la retrospectiva falló: ${put.body}`);
+  if (options.withAction ?? true) {
+    const ownerId = options.ownerId === undefined ? s.ana.id : options.ownerId;
+    const post = await s.ana.client.post(`${retroUrl(s)}/actions`, { ...accionBuena, ownerId });
+    if (post.statusCode !== 201) throw new Error(`POST de la acción falló: ${post.body}`);
+  }
+  return getRetro(s);
+}
+
+export const evaluateRetro = (s: Scenario, user: TestUser = s.ana) =>
+  user.client.post(`/projects/${s.projectId}/validations`, { gateId: 'GATE-RETRO', targetType: 'RETROSPECTIVE', targetId: s.sprintId });
