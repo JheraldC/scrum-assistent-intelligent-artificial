@@ -4,7 +4,7 @@ import { withTransaction, type Db, type Tx } from '../../platform/db.js';
 import type { Clock } from '../../platform/clock.js';
 import { latestRuns } from '../../platform/runs.js';
 import { ActivityRecorder } from '../activity/index.js';
-import { getRetroSnapshot } from '../artifacts/index.js';
+import { getRetroSnapshot, getReviewSnapshot } from '../artifacts/index.js';
 import { getItemSnapshot } from '../backlog/index.js';
 import { applyStageEvent, assertTrackingAllowed, getPlanSnapshot, STAGE_GATES } from '../sprints/index.js';
 import { CATALOG_VERSION, deriveGateState, evaluate, getGate, GATES, type EngineRun } from '../validation/index.js';
@@ -143,6 +143,7 @@ const LOADERS: Partial<Record<TargetType, (tx: Tx, projectId: string, targetId: 
     const plan = await getPlanSnapshot(tx, projectId, targetId);
     return plan ? { version: plan.version, snapshot: plan.snapshot, closed: plan.status === 'CLOSED' } : null;
   },
+  SPRINT_REVIEW: (tx, projectId, targetId) => getReviewSnapshot(tx, projectId, targetId),
   RETROSPECTIVE: (tx, projectId, targetId) => getRetroSnapshot(tx, projectId, targetId),
 };
 
@@ -243,6 +244,7 @@ export async function getRun(db: Db, projectId: string, runId: string) {
 
 async function currentVersion(tx: Tx, targetType: TargetType, targetId: string): Promise<number | null> {
   if (targetType === 'SPRINT') return (await tx.sprint.findUnique({ where: { id: targetId } }))?.version ?? null;
+  if (targetType === 'SPRINT_REVIEW') return (await tx.sprintReview.findUnique({ where: { sprintId: targetId } }))?.version ?? null;
   if (targetType === 'RETROSPECTIVE') return (await tx.retrospective.findUnique({ where: { sprintId: targetId } }))?.version ?? null;
   return null;
 }

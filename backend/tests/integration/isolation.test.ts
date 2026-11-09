@@ -51,6 +51,11 @@ const routes: RouteCase[] = [
   { method: 'get', path: (c) => `/projects/${c.projectId}/export?format=json`, facilitatorOnly: true },
   { method: 'get', path: (c) => `/projects/${c.projectId}/export?format=csv&dataset=activities`, facilitatorOnly: true },
   // US5: retrospectiva y acciones
+  { method: 'get', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/tracking` },
+  { method: 'post', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/tracking`, body: () => ({ kind: 'PROGRESS', content: 'Un avance de prueba' }) },
+  { method: 'post', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/tracking/${c.otherUserId}/resolve` },
+  { method: 'get', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/review` },
+  { method: 'put', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/review`, body: () => ({ results: '', increment: '', feedback: '', goalAssessment: null, goalAssessmentNote: '', expectedVersion: 1 }) },
   { method: 'get', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/retrospective` },
   { method: 'put', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/retrospective`, body: () => ({ positives: [], problems: [], improvements: [], expectedVersion: 1 }) },
   { method: 'post', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/retrospective/actions`, body: () => ({ description: 'Una acción de prueba del equipo' }) },

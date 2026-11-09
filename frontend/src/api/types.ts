@@ -161,3 +161,26 @@ export interface Retrospective {
   previousSprint: { id: string; number: number } | null;
   previousActions: RetroAction[];
 }
+
+export type TrackingKind = 'PROGRESS' | 'IMPEDIMENT' | 'OBSERVATION' | 'DAILY_NOTE';
+
+export interface TrackingEntry {
+  id: string;
+  kind: TrackingKind;
+  content: string;
+  resolvedAt: string | null;
+  authorPseudonym: string;
+  createdAt: string;
+}
+
+export interface SprintReview {
+  results: string;
+  increment: string;
+  feedback: string;
+  goalAssessment: 'ACHIEVED' | 'PARTIAL' | 'NOT_ACHIEVED' | null;
+  goalAssessmentNote: string;
+  version: number;
+  gateState: GateState;
+  sprintStatus: 'OPEN' | 'CLOSED';
+  sprintGoal: string;
+}

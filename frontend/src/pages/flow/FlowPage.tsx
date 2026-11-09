@@ -61,6 +61,20 @@ export function FlowPage() {
                 </Link>
               </p>
             ) : null}
+            {stage.type === 'TRACKING' ? (
+              <p className="mb-3">
+                <Link className="underline" to={`/proyectos/${project.id}/sprint/seguimiento`}>
+                  {es.tracking.title}
+                </Link>
+              </p>
+            ) : null}
+            {stage.type === 'REVIEW' ? (
+              <p className="mb-3">
+                <Link className="underline" to={`/proyectos/${project.id}/sprint/revision`}>
+                  {es.review.title}
+                </Link>
+              </p>
+            ) : null}
             {stage.type === 'PLANNING' ? (
               <p className="mb-3">
                 <Link className="underline" to={`/proyectos/${project.id}/sprint/planificacion`}>

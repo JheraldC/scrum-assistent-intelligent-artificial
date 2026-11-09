@@ -216,7 +216,15 @@ export function RetrospectivePage() {
   }, [sprint?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <LoadingSkeleton />;
-  if (!sprint) return <EmptyState title={es.retro.noSprint} />;
+  if (!sprint) {
+    // Al cerrarse el Sprint desaparece el abierto: se conserva el aviso de cierre.
+    return (
+      <>
+        <EmptyState title={es.retro.noSprint} />
+        {notice ? <Toast message={notice} onClose={() => setNotice(null)} /> : null}
+      </>
+    );
+  }
   if (!retro) return failure ? <ErrorBanner message={failure.message} /> : <LoadingSkeleton />;
 
   const gateState = retro.gateState;

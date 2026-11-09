@@ -13,6 +13,8 @@ import { MembersPage } from '../pages/projects/MembersPage';
 import { ProjectFormPage } from '../pages/projects/ProjectFormPage';
 import { ProjectLayout } from '../pages/projects/ProjectLayout';
 import { RetrospectivePage } from '../pages/sprint/RetrospectivePage';
+import { ReviewPage } from '../pages/sprint/ReviewPage';
+import { TrackingPage } from '../pages/sprint/TrackingPage';
 import { PlanningPage } from '../pages/sprint/PlanningPage';
 import { ProjectsPage } from '../pages/projects/ProjectsPage';
 import { ValidationsPage } from '../pages/validations/ValidationsPage';
@@ -39,6 +41,8 @@ export const router = createBrowserRouter([
               { path: 'backlog/nuevo', element: <BacklogItemPage /> },
               { path: 'backlog/:itemId', element: <BacklogItemPage /> },
               { path: 'sprint/planificacion', element: <PlanningPage /> },
+              { path: 'sprint/seguimiento', element: <TrackingPage /> },
+              { path: 'sprint/revision', element: <ReviewPage /> },
               { path: 'sprint/retrospectiva', element: <RetrospectivePage /> },
               { path: 'validaciones', element: <ValidationsPage /> },
               { path: 'participantes', element: <MembersPage /> },

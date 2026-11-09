@@ -43,6 +43,16 @@ const retroCriteria: CriterionDef[] = [
   { id: 'RETRO-06', title: 'Al menos una acción está marcada para el siguiente Sprint', origin: 'ADDITIONAL', mandatory: false, dimension: 'completitud' },
 ];
 
+const REVIEW_NOTE =
+  'La Scrum Guide 2020 indica que en la Sprint Review el equipo presenta los resultados a las personas interesadas y se revisa el progreso hacia el Sprint Goal.';
+
+const reviewCriteria: CriterionDef[] = [
+  { id: 'REV-01', title: 'Se registraron los resultados del Sprint', origin: 'OFFICIAL', mandatory: true, scrumGuideNote: REVIEW_NOTE },
+  { id: 'REV-02', title: 'Se describe el incremento presentado', origin: 'OFFICIAL', mandatory: true, scrumGuideNote: REVIEW_NOTE },
+  { id: 'REV-03', title: 'Se valora el avance hacia el Sprint Goal y se explica', origin: 'ADDITIONAL', mandatory: true, dimension: 'coherencia' },
+  { id: 'REV-04', title: 'Se registró la retroalimentación recibida', origin: 'OFFICIAL', mandatory: true, scrumGuideNote: REVIEW_NOTE },
+];
+
 /** Las compuertas se añaden a medida que se implementan sus historias (GATE-PLAN, GATE-REVIEW, GATE-RETRO). */
 export const GATES: GateDef[] = [
   {
@@ -59,6 +69,14 @@ export const GATES: GateDef[] = [
     // Control del prototipo (no una regla de Scrum): bloquea iniciar el seguimiento del Sprint.
     blocking: true,
     criteria: planCriteria,
+  },
+  {
+    gateId: 'GATE-REVIEW',
+    title: 'Sprint Review',
+    targetType: 'SPRINT_REVIEW',
+    // Control orientativo: no bloquea el avance ni admite excepciones.
+    blocking: false,
+    criteria: reviewCriteria,
   },
   {
     gateId: 'GATE-RETRO',

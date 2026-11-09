@@ -23,10 +23,13 @@ type SprintWithRelations = Prisma.SprintGetPayload<{ include: typeof withStages 
 async function stageGateStates(tx: Tx, projectId: string, sprint: SprintWithRelations): Promise<Partial<Record<StageType, GateState>>> {
   const planRun = (await latestRuns(tx, projectId, 'SPRINT', [sprint.id])).get(sprint.id);
   const retroRun = (await latestRuns(tx, projectId, 'RETROSPECTIVE', [sprint.id])).get(sprint.id);
+  const reviewRun = (await latestRuns(tx, projectId, 'SPRINT_REVIEW', [sprint.id])).get(sprint.id);
+  const review = await tx.sprintReview.findUnique({ where: { sprintId: sprint.id } });
   const retro = await tx.retrospective.findUnique({ where: { sprintId: sprint.id } });
   const latest = (run: typeof planRun) => (run ? { status: run.status, targetVersion: run.targetVersion, hasException: run.hasException } : null);
   return {
     PLANNING: deriveGateState(latest(planRun), sprint.version),
+    REVIEW: deriveGateState(latest(reviewRun), review?.version ?? 1),
     RETROSPECTIVE: deriveGateState(latest(retroRun), retro?.version ?? 1),
   };
 }

@@ -100,6 +100,23 @@ enum RetroActionStatus {
   @@map("retro_action_status")
 }
 
+enum TrackingKind {
+  PROGRESS
+  IMPEDIMENT
+  OBSERVATION
+  DAILY_NOTE
+
+  @@map("tracking_kind")
+}
+
+enum GoalAssessment {
+  ACHIEVED
+  PARTIAL
+  NOT_ACHIEVED
+
+  @@map("goal_assessment")
+}
+
 enum StageType {
   PLANNING
   TRACKING
@@ -135,6 +152,7 @@ model User {
   exceptionsGranted GateException[]
   agentInteractions AgentInteraction[]
   retroActionsOwned RetroAction[]
+  trackingEntries   TrackingEntry[]
 
   @@map("user")
 }
@@ -202,10 +220,12 @@ model Sprint {
   updatedAt  DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
   closedAt   DateTime?    @map("closed_at") @db.Timestamptz(6)
 
-  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  stages        SprintStage[]
-  items         SprintItem[]
-  retrospective Retrospective?
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stages          SprintStage[]
+  items           SprintItem[]
+  retrospective   Retrospective?
+  review          SprintReview?
+  trackingEntries TrackingEntry[]
 
   @@unique([projectId, number])
   @@map("sprint")
@@ -414,4 +434,36 @@ model RetroAction {
 
   @@index([sprintId])
   @@map("retro_action")
+}
+
+model TrackingEntry {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sprintId   String       @map("sprint_id") @db.Uuid
+  kind       TrackingKind
+  content    String
+  resolvedAt DateTime?    @map("resolved_at") @db.Timestamptz(6)
+  createdBy  String       @map("created_by") @db.Uuid
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sprint  Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  creator User   @relation(fields: [createdBy], references: [id])
+
+  @@index([sprintId, createdAt])
+  @@map("tracking_entry")
+}
+
+model SprintReview {
+  sprintId           String          @id @map("sprint_id") @db.Uuid
+  results            String          @default("")
+  increment          String          @default("")
+  feedback           String          @default("")
+  goalAssessment     GoalAssessment? @map("goal_assessment")
+  goalAssessmentNote String          @default("") @map("goal_assessment_note")
+  version            Int             @default(1)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  sprint Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+
+  @@map("sprint_review")
 }
