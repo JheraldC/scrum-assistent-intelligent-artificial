@@ -1,0 +1,737 @@
+openapi: 3.1.0
+info:
+  title: API del Agente Inteligente para la Guía y Validación del Proceso Scrum
+  version: 1.0.0-draft
+  description: |
+    Contrato REST del backend (prefijo `/api/v1`). Fuente de verdad de requisitos: `specs/001-scrum-ai-agent-guide/spec.md`.
+
+    Convenciones:
+    - Autenticación por cookie de sesión `HttpOnly`. Los métodos que modifican estado exigen la cabecera
+      `X-CSRF-Token` (obtenida en `GET /auth/csrf`) y un `Origin` válido.
+    - Toda ruta `/projects/{projectId}/...` exige membresía en el proyecto; si la persona no es miembro la
+      respuesta es **404** (no se revela la existencia). Un rol insuficiente devuelve **403**.
+    - Las modificaciones de artefactos exigen `expectedVersion`; si no coincide: **409 VERSION_CONFLICT**.
+    - Errores con formato `Problem` (mensajes en español). Fechas ISO 8601 UTC generadas por el servidor.
+    - El contenido generado por IA siempre va en objetos marcados `source: AI_RECOMMENDATION`; los resultados
+      de reglas llevan `source: RULE_CHECK`.
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+tags:
+  - name: Autenticación
+  - name: Proyectos y miembros
+  - name: Product Backlog
+  - name: Sprints y etapas
+  - name: Artefactos del Sprint
+  - name: Validación
+  - name: Agente IA
+  - name: Actividad y exportación
+paths:
+  /health:
+    get:
+      summary: Estado del servicio (sin autenticación)
+      security: []
+      responses:
+        '200': { description: Servicio operativo, content: { application/json: { schema: { type: object, properties: { status: { type: string, enum: [ok] } } } } } }
+
+  /auth/register:
+    post:
+      tags: [Autenticación]
+      summary: Registrar una cuenta (FR-001)
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Credentials' } } }
+      responses:
+        '201': { description: Cuenta creada, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Iniciar sesión (establece la cookie de sesión)
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Credentials' } } }
+      responses:
+        '200': { description: Sesión iniciada, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /auth/logout:
+    post:
+      tags: [Autenticación]
+      summary: Cerrar sesión
+      responses:
+        '204': { description: Sesión cerrada }
+  /auth/me:
+    get:
+      tags: [Autenticación]
+      summary: Persona autenticada y seudónimo
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+  /auth/csrf:
+    get:
+      tags: [Autenticación]
+      summary: Token CSRF de la sesión actual
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [csrfToken], properties: { csrfToken: { type: string } } } } } }
+
+  /projects:
+    get:
+      tags: [Proyectos y miembros]
+      summary: Proyectos de la persona con su rol y estado derivado (FR-002, FR-004)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ProjectSummary' } } } } }
+    post:
+      tags: [Proyectos y miembros]
+      summary: Crear proyecto; quien crea queda como Facilitador (FR-002)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProjectInput' } } }
+      responses:
+        '201': { description: Creado, content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } } }
+        '422': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Proyectos y miembros]
+      summary: Detalle del proyecto con Sprint abierto y estado de etapas (FR-004, FR-005)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectDetail' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Proyectos y miembros]
+      summary: Editar datos del proyecto (solo Facilitador)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProjectInput' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/members:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Proyectos y miembros]
+      summary: Miembros con seudónimo y rol (el correo solo lo ve el Facilitador)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Member' } } } } }
+    post:
+      tags: [Proyectos y miembros]
+      summary: Agregar una cuenta existente al proyecto con un rol (solo Facilitador; FR-002)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { $ref: '#/components/schemas/Role' } } } } }
+      responses:
+        '201': { description: Agregado, content: { application/json: { schema: { $ref: '#/components/schemas/Member' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/members/{userId}:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Proyectos y miembros]
+      summary: Cambiar el rol de un miembro (solo Facilitador; siempre queda al menos un Facilitador)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [role], properties: { role: { $ref: '#/components/schemas/Role' } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Member' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [Proyectos y miembros]
+      summary: Quitar a un miembro (solo Facilitador; no puede quedar sin Facilitador)
+      responses:
+        '204': { description: Eliminado }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /projects/{projectId}/backlog:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Product Backlog]
+      summary: Product Backlog ordenado, con estado de la última evaluación de cada elemento (FR-008)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/BacklogItem' } } } } }
+    post:
+      tags: [Product Backlog]
+      summary: Crear historia o elemento (FR-008)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BacklogItemInput' } } }
+      responses:
+        '201': { description: Creado, content: { application/json: { schema: { $ref: '#/components/schemas/BacklogItem' } } } }
+        '422': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/backlog/{itemId}:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { name: itemId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Product Backlog]
+      summary: Detalle del elemento
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/BacklogItem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Product Backlog]
+      summary: Modificar el elemento con control de versión (FR-008, FR-036)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/BacklogItemInput' }, { $ref: '#/components/schemas/ExpectedVersion' }] } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/BacklogItem' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  /projects/{projectId}/sprints:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Sprints y etapas]
+      summary: Sprints del proyecto
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SprintSummary' } } } } }
+    post:
+      tags: [Sprints y etapas]
+      summary: Crear Sprint abierto con sus cuatro etapas (solo Facilitador; uno abierto por proyecto)
+      responses:
+        '201': { description: Creado, content: { application/json: { schema: { $ref: '#/components/schemas/Sprint' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/sprints/{sprintId}:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+    get:
+      tags: [Sprints y etapas]
+      summary: Sprint con objetivo, plan, elementos seleccionados, etapas y estado de compuertas (FR-005)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Sprint' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Sprints y etapas]
+      summary: Definir Sprint Goal y plan de trabajo (FR-011)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/SprintInput' }, { $ref: '#/components/schemas/ExpectedVersion' }] } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Sprint' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/sprints/{sprintId}/items:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+    put:
+      tags: [Sprints y etapas]
+      summary: Reemplazar los elementos del Product Backlog seleccionados (FR-011)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { allOf: [{ type: object, required: [itemIds], properties: { itemIds: { type: array, items: { type: string, format: uuid } } } }, { $ref: '#/components/schemas/ExpectedVersion' }] } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Sprint' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /projects/{projectId}/sprints/{sprintId}/stages/{stageType}/complete:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+      - { $ref: '#/components/parameters/stageType' }
+    post:
+      tags: [Sprints y etapas]
+      summary: Completar/avanzar una etapa. Etapas con compuerta bloqueante exigen evaluación vigente aprobada o excepción (FR-013)
+      responses:
+        '200': { description: Etapa validada, content: { application/json: { schema: { $ref: '#/components/schemas/Stage' } } } }
+        '409': { description: 'GATE_NOT_PASSED (compuerta sin aprobar) o STAGE_ORDER (orden no permitido)', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /projects/{projectId}/sprints/{sprintId}/stages/{stageType}/evidence:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+      - { $ref: '#/components/parameters/stageType' }
+    get:
+      tags: [Sprints y etapas]
+      summary: Evidencia registrada de la etapa (FR-006)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Evidence' } } } } }
+    post:
+      tags: [Sprints y etapas]
+      summary: Registrar evidencia (texto o enlace)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [content], properties: { content: { type: string, minLength: 1, maxLength: 2000 } } } } }
+      responses:
+        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/Evidence' } } } }
+
+  /projects/{projectId}/sprints/{sprintId}/tracking:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+    get:
+      tags: [Artefactos del Sprint]
+      summary: Avances, impedimentos, observaciones y notas de Daily Scrum (FR-038)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TrackingEntry' } } } } }
+    post:
+      tags: [Artefactos del Sprint]
+      summary: Registrar una entrada de seguimiento
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [kind, content], properties: { kind: { type: string, enum: [PROGRESS, IMPEDIMENT, OBSERVATION, DAILY_NOTE] }, content: { type: string, minLength: 1, maxLength: 2000 } } } } }
+      responses:
+        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/TrackingEntry' } } } }
+  /projects/{projectId}/sprints/{sprintId}/tracking/{entryId}/resolve:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+      - { name: entryId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Artefactos del Sprint]
+      summary: Marcar un impedimento como resuelto
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/TrackingEntry' } } } }
+  /projects/{projectId}/sprints/{sprintId}/review:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+    get:
+      tags: [Artefactos del Sprint]
+      summary: Sprint Review (FR-039)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Review' } } } }
+    put:
+      tags: [Artefactos del Sprint]
+      summary: Guardar la Sprint Review con control de versión
+      requestBody:
+        required: true
+        content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ReviewInput' }, { $ref: '#/components/schemas/ExpectedVersion' }] } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Review' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /projects/{projectId}/sprints/{sprintId}/retrospective:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+    get:
+      tags: [Artefactos del Sprint]
+      summary: Retrospectiva con sus acciones (FR-018)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Retrospective' } } } }
+    put:
+      tags: [Artefactos del Sprint]
+      summary: Guardar aspectos positivos, problemas y mejoras con control de versión
+      requestBody:
+        required: true
+        content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/RetrospectiveInput' }, { $ref: '#/components/schemas/ExpectedVersion' }] } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Retrospective' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /projects/{projectId}/sprints/{sprintId}/retrospective/actions:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+    post:
+      tags: [Artefactos del Sprint]
+      summary: Crear una acción de mejora con responsable
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RetroActionInput' } } }
+      responses:
+        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/RetroAction' } } } }
+  /projects/{projectId}/sprints/{sprintId}/retrospective/actions/{actionId}:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { $ref: '#/components/parameters/sprintId' }
+      - { name: actionId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Artefactos del Sprint]
+      summary: Editar la acción o actualizar su seguimiento (estado y nota)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RetroActionInput' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RetroAction' } } } }
+
+  /criteria-catalog:
+    get:
+      tags: [Validación]
+      summary: Catálogo de compuertas y criterios con su origen oficial/adicional (FR-017)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/CriteriaCatalog' } } } }
+  /projects/{projectId}/validations:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Validación]
+      summary: Historial de evaluaciones (filtrable por objetivo)
+      parameters:
+        - { name: targetType, in: query, schema: { $ref: '#/components/schemas/TargetType' } }
+        - { name: targetId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ValidationRun' } } } } }
+    post:
+      tags: [Validación]
+      summary: Evaluar una compuerta sobre un objetivo (FR-012, FR-014, FR-015). Crea un nuevo intento y devuelve resultados por criterio; la retroalimentación de IA es opcional y no afecta el estado.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [gateId, targetType, targetId], properties: { gateId: { $ref: '#/components/schemas/GateId' }, targetType: { $ref: '#/components/schemas/TargetType' }, targetId: { type: string, format: uuid }, requestAiFeedback: { type: boolean, default: true } } } } }
+      responses:
+        '201': { description: Evaluación registrada, content: { application/json: { schema: { $ref: '#/components/schemas/ValidationRun' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/validations/{validationId}:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { name: validationId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Validación]
+      summary: Detalle de una evaluación con evidencia y resultados por criterio
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ValidationRun' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/validations/{validationId}/exception:
+    parameters:
+      - { $ref: '#/components/parameters/projectId' }
+      - { name: validationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Validación]
+      summary: Autorizar una excepción manual justificada (solo Facilitador; FR-016)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [justification], properties: { justification: { type: string, minLength: 10, maxLength: 1000 } } } } }
+      responses:
+        '201': { description: Excepción registrada, content: { application/json: { schema: { $ref: '#/components/schemas/GateException' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { description: 'La evaluación no está en FAILED o está desactualizada', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  /projects/{projectId}/agent/chat:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    post:
+      tags: [Agente IA]
+      summary: Preguntar al asistente con el contexto del proyecto (FR-020, FR-021). No modifica artefactos.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [message], properties: { message: { type: string, minLength: 1, maxLength: 2000 }, focus: { type: object, description: Artefacto en pantalla para acotar el contexto, properties: { targetType: { $ref: '#/components/schemas/TargetType' }, targetId: { type: string, format: uuid } } } } } } }
+      responses:
+        '200': { description: Respuesta del asistente validada, content: { application/json: { schema: { $ref: '#/components/schemas/AgentReply' } } } }
+        '429': { $ref: '#/components/responses/Problem' }
+        '502': { description: 'Servicio de IA no disponible, respuesta inválida o tiempo agotado; las reglas siguen operativas (FR-024)', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /projects/{projectId}/agent/interactions:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Agente IA]
+      summary: Historial de interacciones con modelo, versión de prompt y estado (FR-025)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AgentInteraction' } } } } }
+
+  /projects/{projectId}/activity:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Actividad y exportación]
+      summary: Historial cronológico de actividades y artefactos (FR-004)
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: before, in: query, description: 'Id de actividad para paginación', schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Activity' } } } } }
+  /projects/{projectId}/export:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Actividad y exportación]
+      summary: Exportar datos del proyecto en JSON o CSV (solo Facilitador; FR-027, FR-028). Formato en contracts/export-format.md
+      parameters:
+        - { name: format, in: query, required: true, schema: { type: string, enum: [json, csv] } }
+        - { name: dataset, in: query, description: 'Obligatorio con csv', schema: { type: string, enum: [activities, stage_durations, validation_runs, criterion_results, exceptions, agent_interactions] } }
+        - { name: includeSample, in: query, schema: { type: boolean, default: false } }
+        - { name: includeText, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200': { description: Archivo de exportación, content: { application/json: { schema: { type: object } }, text/csv: { schema: { type: string } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { description: 'Sin datos exportables (proyecto vacío o solo de ejemplo sin includeSample)', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+
+components:
+  securitySchemes:
+    sessionCookie: { type: apiKey, in: cookie, name: sid }
+  parameters:
+    projectId: { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+    sprintId: { name: sprintId, in: path, required: true, schema: { type: string, format: uuid } }
+    stageType: { name: stageType, in: path, required: true, schema: { $ref: '#/components/schemas/StageType' } }
+  responses:
+    Problem: { description: Error, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    Conflict:
+      description: Conflicto de versión (FR-036); incluye el estado actual para resolverlo
+      content: { application/problem+json: { schema: { allOf: [{ $ref: '#/components/schemas/Problem' }, { type: object, properties: { current: { type: object } } }] } } }
+  schemas:
+    Problem:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string, examples: [VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VERSION_CONFLICT, GATE_NOT_PASSED, STAGE_ORDER, RATE_LIMITED, AI_UNAVAILABLE, AI_INVALID_RESPONSE, AI_TIMEOUT, AI_BUDGET_EXCEEDED, LAST_FACILITATOR] }
+        message: { type: string, description: Mensaje en español apto para mostrar }
+        details: { type: array, items: { type: object, properties: { field: { type: string }, message: { type: string } } } }
+        requestId: { type: string }
+    ExpectedVersion:
+      type: object
+      required: [expectedVersion]
+      properties: { expectedVersion: { type: integer, minimum: 1 } }
+    Role: { type: string, enum: [PARTICIPANT, FACILITATOR] }
+    StageType: { type: string, enum: [PLANNING, TRACKING, REVIEW, RETROSPECTIVE] }
+    StageStatus: { type: string, enum: [PENDING, IN_PROGRESS, NEEDS_CORRECTION, VALIDATED] }
+    GateId: { type: string, enum: [GATE-STORY, GATE-PLAN, GATE-REVIEW, GATE-RETRO] }
+    TargetType: { type: string, enum: [BACKLOG_ITEM, SPRINT, SPRINT_REVIEW, RETROSPECTIVE] }
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 10, maxLength: 128, writeOnly: true }
+    Me:
+      type: object
+      required: [id, email, pseudonym]
+      properties: { id: { type: string, format: uuid }, email: { type: string }, pseudonym: { type: string, pattern: '^P-[A-Z2-9]{6}$' } }
+    ProjectInput:
+      type: object
+      required: [name, description, productGoal]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 100 }
+        description: { type: string, maxLength: 1000 }
+        productGoal: { type: string, minLength: 1, maxLength: 500 }
+    Project:
+      allOf:
+        - $ref: '#/components/schemas/ProjectInput'
+        - type: object
+          required: [id, isSample, createdAt]
+          properties: { id: { type: string, format: uuid }, isSample: { type: boolean }, createdAt: { type: string, format: date-time } }
+    ProjectStatus: { type: string, enum: [SIN_SPRINT, EN_CURSO, REQUIERE_CORRECCION, CERRADO] }
+    ProjectSummary:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - type: object
+          required: [myRole, status]
+          properties: { myRole: { $ref: '#/components/schemas/Role' }, status: { $ref: '#/components/schemas/ProjectStatus' } }
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProjectSummary'
+        - type: object
+          properties: { openSprint: { oneOf: [{ $ref: '#/components/schemas/Sprint' }, { type: 'null' }] } }
+    Member:
+      type: object
+      required: [userId, pseudonym, role]
+      properties:
+        userId: { type: string, format: uuid }
+        pseudonym: { type: string }
+        email: { type: string, description: Solo visible para el Facilitador }
+        role: { $ref: '#/components/schemas/Role' }
+    BacklogItemInput:
+      type: object
+      required: [kind, title, priority]
+      properties:
+        kind: { type: string, enum: [USER_STORY, ITEM] }
+        title: { type: string, minLength: 1, maxLength: 120 }
+        asA: { type: string, maxLength: 200 }
+        iWant: { type: string, maxLength: 500 }
+        soThat: { type: string, maxLength: 500 }
+        description: { type: string, maxLength: 2000 }
+        acceptanceCriteria: { type: array, maxItems: 20, items: { type: string, maxLength: 300 } }
+        priority: { type: integer, minimum: 1 }
+    BacklogItem:
+      allOf:
+        - $ref: '#/components/schemas/BacklogItemInput'
+        - type: object
+          required: [id, code, version]
+          properties:
+            id: { type: string, format: uuid }
+            code: { type: string, examples: [HU-1] }
+            version: { type: integer }
+            gateState: { $ref: '#/components/schemas/GateState' }
+            updatedAt: { type: string, format: date-time }
+    SprintInput:
+      type: object
+      properties:
+        sprintGoal: { type: string, maxLength: 500 }
+        workPlan: { type: string, maxLength: 5000 }
+    SprintSummary:
+      type: object
+      required: [id, number, status]
+      properties: { id: { type: string, format: uuid }, number: { type: integer }, status: { type: string, enum: [OPEN, CLOSED] } }
+    Sprint:
+      allOf:
+        - $ref: '#/components/schemas/SprintSummary'
+        - $ref: '#/components/schemas/SprintInput'
+        - type: object
+          required: [version, stages, itemIds]
+          properties:
+            version: { type: integer }
+            itemIds: { type: array, items: { type: string, format: uuid } }
+            stages: { type: array, items: { $ref: '#/components/schemas/Stage' } }
+    Stage:
+      type: object
+      required: [type, status]
+      properties:
+        type: { $ref: '#/components/schemas/StageType' }
+        status: { $ref: '#/components/schemas/StageStatus' }
+        startedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        gateState: { $ref: '#/components/schemas/GateState' }
+    GateState:
+      type: string
+      description: Estado derivado de la compuerta para la versión actual del objetivo
+      enum: [NO_EVALUADA, APROBADA, NO_APROBADA, APROBADA_CON_EXCEPCION, DESACTUALIZADA]
+    Evidence:
+      type: object
+      required: [id, content, createdAt]
+      properties: { id: { type: string, format: uuid }, content: { type: string }, authorPseudonym: { type: string }, createdAt: { type: string, format: date-time } }
+    TrackingEntry:
+      type: object
+      required: [id, kind, content, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [PROGRESS, IMPEDIMENT, OBSERVATION, DAILY_NOTE] }
+        content: { type: string }
+        resolvedAt: { type: [string, 'null'], format: date-time }
+        authorPseudonym: { type: string }
+        createdAt: { type: string, format: date-time }
+    ReviewInput:
+      type: object
+      properties:
+        results: { type: string, maxLength: 5000 }
+        increment: { type: string, maxLength: 5000 }
+        feedback: { type: string, maxLength: 5000 }
+        goalAssessment: { type: [string, 'null'], enum: [ACHIEVED, PARTIAL, NOT_ACHIEVED, null] }
+        goalAssessmentNote: { type: string, maxLength: 2000 }
+    Review:
+      allOf:
+        - $ref: '#/components/schemas/ReviewInput'
+        - type: object
+          required: [version]
+          properties: { version: { type: integer }, gateState: { $ref: '#/components/schemas/GateState' } }
+    RetrospectiveInput:
+      type: object
+      properties:
+        positives: { type: array, items: { type: string, maxLength: 500 }, maxItems: 30 }
+        problems: { type: array, items: { type: string, maxLength: 500 }, maxItems: 30 }
+        improvements: { type: array, items: { type: string, maxLength: 500 }, maxItems: 30 }
+    RetroActionInput:
+      type: object
+      properties:
+        description: { type: string, minLength: 1, maxLength: 300 }
+        ownerId: { type: [string, 'null'], format: uuid }
+        forNextSprint: { type: boolean }
+        status: { type: string, enum: [OPEN, DONE, DISCARDED] }
+        followUpNote: { type: string, maxLength: 500 }
+    RetroAction:
+      allOf:
+        - $ref: '#/components/schemas/RetroActionInput'
+        - type: object
+          required: [id]
+          properties: { id: { type: string, format: uuid }, followUpUpdatedAt: { type: [string, 'null'], format: date-time } }
+    Retrospective:
+      allOf:
+        - $ref: '#/components/schemas/RetrospectiveInput'
+        - type: object
+          required: [version, actions]
+          properties:
+            version: { type: integer }
+            actions: { type: array, items: { $ref: '#/components/schemas/RetroAction' } }
+            gateState: { $ref: '#/components/schemas/GateState' }
+    CriteriaCatalog:
+      type: object
+      required: [catalogVersion, gates]
+      properties:
+        catalogVersion: { type: string }
+        gates:
+          type: array
+          items:
+            type: object
+            required: [gateId, blocking, criteria]
+            properties:
+              gateId: { $ref: '#/components/schemas/GateId' }
+              blocking: { type: boolean }
+              criteria:
+                type: array
+                items:
+                  type: object
+                  required: [id, title, origin, mandatory]
+                  properties:
+                    id: { type: string }
+                    title: { type: string }
+                    origin: { type: string, enum: [OFFICIAL, ADDITIONAL] }
+                    mandatory: { type: boolean }
+                    scrumGuideNote: { type: string, description: Referencia resumida para criterios oficiales }
+    CriterionResult:
+      type: object
+      required: [criterionId, origin, mandatory, outcome, source]
+      properties:
+        criterionId: { type: string }
+        origin: { type: string, enum: [OFFICIAL, ADDITIONAL] }
+        mandatory: { type: boolean }
+        outcome: { type: string, enum: [MET, NOT_MET, NOT_APPLICABLE] }
+        evidence: { type: string }
+        explanation: { type: string }
+        recommendation: { type: string }
+        source: { type: string, enum: [RULE_CHECK], description: Etiqueta de interfaz "Comprobación por reglas" }
+    AiObservation:
+      type: object
+      required: [text, source]
+      properties:
+        criterionId: { type: [string, 'null'] }
+        text: { type: string }
+        suggestedRewrite: { type: [string, 'null'] }
+        source: { type: string, enum: [AI_RECOMMENDATION], description: Etiqueta de interfaz "Recomendación de IA" }
+    ValidationRun:
+      type: object
+      required: [id, gateId, targetType, targetId, targetVersion, attemptNo, status, catalogVersion, aiStatus, results, startedAt, finishedAt]
+      properties:
+        id: { type: string, format: uuid }
+        gateId: { $ref: '#/components/schemas/GateId' }
+        targetType: { $ref: '#/components/schemas/TargetType' }
+        targetId: { type: string, format: uuid }
+        targetVersion: { type: integer }
+        attemptNo: { type: integer, minimum: 1 }
+        status: { type: string, enum: [PASSED, FAILED, ERROR] }
+        catalogVersion: { type: string }
+        aiStatus: { type: string, enum: [OK, NOT_REQUESTED, TIMEOUT, PROVIDER_ERROR, INVALID_RESPONSE, BUDGET_EXCEEDED] }
+        results: { type: array, items: { $ref: '#/components/schemas/CriterionResult' } }
+        aiObservations: { type: array, items: { $ref: '#/components/schemas/AiObservation' } }
+        exception: { oneOf: [{ $ref: '#/components/schemas/GateException' }, { type: 'null' }] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+    GateException:
+      type: object
+      required: [id, authorizedByPseudonym, justification, createdAt]
+      properties: { id: { type: string, format: uuid }, authorizedByPseudonym: { type: string }, justification: { type: string }, createdAt: { type: string, format: date-time } }
+    AgentReply:
+      type: object
+      required: [interactionId, answer, disclaimer, source, model]
+      properties:
+        interactionId: { type: string, format: uuid }
+        answer: { type: string, description: Texto plano (la interfaz lo escapa; nunca HTML) }
+        suggestions: { type: array, items: { type: object, properties: { target: { type: string }, text: { type: string } } } }
+        referencedCriteria: { type: array, items: { type: string } }
+        disclaimer: { type: string, description: Aviso de que la recomendación no está garantizada }
+        source: { type: string, enum: [AI_RECOMMENDATION] }
+        model: { type: string }
+    AgentInteraction:
+      type: object
+      required: [id, kind, model, promptVersion, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [CHAT, VALIDATION_FEEDBACK] }
+        model: { type: string }
+        promptVersion: { type: string }
+        status: { type: string, enum: [OK, TIMEOUT, PROVIDER_ERROR, INVALID_RESPONSE, BUDGET_EXCEEDED, RATE_LIMITED] }
+        question: { type: string }
+        answer: { type: [string, 'null'] }
+        userPseudonym: { type: string }
+        createdAt: { type: string, format: date-time }
+    Activity:
+      type: object
+      required: [id, action, entityType, occurredAt]
+      properties:
+        id: { type: integer }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: [string, 'null'], format: uuid }
+        actorPseudonym: { type: [string, 'null'] }
+        occurredAt: { type: string, format: date-time }

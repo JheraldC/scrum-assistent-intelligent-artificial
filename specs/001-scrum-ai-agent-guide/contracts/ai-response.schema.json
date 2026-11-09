@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-response.schema.json",
+  "title": "Respuestas estructuradas esperadas del modelo (v1)",
+  "description": "El servidor pide al modelo JSON con esta forma y lo valida (Zod, equivalente a este esquema). Cualquier salida que no cumpla se considera INVALID_RESPONSE; nunca se aprueba nada a partir de ella.",
+  "oneOf": [
+    { "$ref": "#/$defs/chatReply" },
+    { "$ref": "#/$defs/validationFeedback" }
+  ],
+  "$defs": {
+    "chatReply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "answer"],
+      "properties": {
+        "type": { "const": "chat_reply" },
+        "answer": { "type": "string", "minLength": 1, "maxLength": 3000, "description": "Texto plano en español." },
+        "suggestions": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["target", "text"],
+            "properties": {
+              "target": { "type": "string", "maxLength": 100, "description": "Artefacto o campo al que aplica (p. ej. HU-2.criterios)." },
+              "text": { "type": "string", "minLength": 1, "maxLength": 800 }
+            }
+          }
+        },
+        "referencedCriteria": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "type": "string", "pattern": "^(STORY|PLAN|REV|RETRO)-[0-9]{2}$" }
+        }
+      }
+    },
+    "validationFeedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "observations"],
+      "properties": {
+        "type": { "const": "validation_feedback" },
+        "summary": { "type": "string", "maxLength": 1000 },
+        "observations": {
+          "type": "array",
+          "maxItems": 15,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text"],
+            "properties": {
+              "criterionId": { "type": ["string", "null"], "pattern": "^(STORY|PLAN|REV|RETRO)-[0-9]{2}$" },
+              "text": { "type": "string", "minLength": 1, "maxLength": 800 },
+              "suggestedRewrite": { "type": ["string", "null"], "maxLength": 800 }
+            }
+          }
+        }
+      }
+    }
+  }
+}
