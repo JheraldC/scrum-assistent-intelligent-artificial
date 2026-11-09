@@ -21,8 +21,10 @@ Enfoque técnico (justificación en [research.md](research.md)):
   (Sprint abierto único, intentos consecutivos, un Facilitador mínimo).
 - Motor de validación **puro** y catálogo versionado en código ([rules-catalog.md](rules-catalog.md)):
   la IA aporta observaciones asesoras y **nunca** decide el estado de una compuerta.
-- Servicio LLM agnóstico del proveedor, con salidas estructuradas validadas, prompts versionados,
-  tiempos límite, reintento acotado, presupuesto de tokens y registro de modelo/configuración.
+- Servicio LLM con interfaz agnóstica del proveedor y **Groq (plan gratuito) como proveedor
+  decidido**, con salidas estructuradas validadas, prompts versionados, tiempos límite, reintento
+  acotado, presupuestos diarios de tokens (global y por proyecto) y registro de modelo/configuración.
+  El cupo gratuito es pequeño y compartido, por eso el contexto se limita a ~2 500 tokens.
 
 Esta fase **no implementa código**: produce el diseño que Jherald y Ariel construirán de forma
 incremental (el desglose en tareas corresponde a `/speckit-tasks`).
@@ -139,7 +141,7 @@ backend/
 │   │   ├── artifacts/            # seguimiento, review, retrospectiva y acciones
 │   │   ├── validation/           # MOTOR PURO: catalog/ · rules/ · gate-state · dictionaries/
 │   │   ├── flow/                 # orquestación: evaluateGate, grantException, completeStage
-│   │   ├── agent/                # llm/ (provider, anthropic, openai-compatible, fake) · prompts/v1/ · context · budget · service
+│   │   ├── agent/                # llm/ (provider, openai-compatible [Groq], fake) · prompts/v1/ · context · budget · service
 │   │   ├── activity/             # registro de solo inserción
 │   │   └── export/               # generadores CSV/JSON y neutralización de fórmulas
 │   └── http/                     # registro de rutas, manejador global de errores, servidor de estáticos
@@ -241,8 +243,7 @@ Decisiones en [research.md](research.md) D-03 a D-05.
 ```text
 agent/
 ├── llm/provider.ts              # interfaz LlmProvider.complete(req) → { text, model, tokens, latencyMs }
-├── llm/anthropic.ts             # adaptador (fetch)
-├── llm/openai-compatible.ts     # adaptador (fetch)
+├── llm/openai-compatible.ts     # adaptador (fetch); proveedor por defecto: Groq vía LLM_BASE_URL
 ├── llm/fake.ts                  # solo pruebas: guion de respuestas, errores y retardos
 ├── prompts/v1/                  # system.md · chat.md · validation-feedback.md  (PROMPT_VERSION = "v1")
 ├── context.ts                   # arma el contexto acotado al proyecto
@@ -252,17 +253,21 @@ agent/
 ```
 
 Configuración por variables de entorno (validadas con Zod al arrancar): `LLM_PROVIDER`, `LLM_MODEL`,
-`LLM_API_KEY`, `LLM_BASE_URL` (opcional), `LLM_TIMEOUT_MS` (20 000), `LLM_MAX_OUTPUT_TOKENS`,
-`LLM_TEMPERATURE`, `AI_USER_RATE_PER_MINUTE`, `AI_DAILY_TOKEN_BUDGET_PER_PROJECT`. El servidor
-**no arranca en producción** con `LLM_PROVIDER=fake`.
+`LLM_API_KEY`, `LLM_BASE_URL` (Groq), `LLM_TIMEOUT_MS` (20 000), `LLM_MAX_OUTPUT_TOKENS`,
+`LLM_TEMPERATURE`, `AI_USER_RATE_PER_MINUTE`, `AI_DAILY_TOKEN_BUDGET_GLOBAL` y
+`AI_DAILY_TOKEN_BUDGET_PER_PROJECT`. Valores por defecto de partida (a calibrar, U-02):
+`LLM_PROVIDER=openai-compatible`, `LLM_BASE_URL` = endpoint compatible de Groq, `LLM_MODEL` = el
+elegido en el piloto (U-01). El servidor **no arranca en producción** con `LLM_PROVIDER=fake`.
 
 ### Contexto enviado al modelo
 
 Solo datos del proyecto actual, en este orden y con límites de tamaño: objetivo del producto →
 resumen de etapas y estado → artefacto en foco (instantánea) → últimos resultados de reglas del
 artefacto (criterios incumplidos con su explicación) → catálogo de criterios relevante (id, título,
-origen oficial/adicional) → últimas 6 interacciones → mensaje de la persona. **Nunca**: correos,
-seudónimos de otras personas, datos de otros proyectos, claves ni cookies.
+origen oficial/adicional) → últimas 4 interacciones → mensaje de la persona. El total se recorta
+por prioridad para no superar ~2 500 tokens de entrada (el cupo gratuito diario es pequeño y
+compartido; ver [research.md](research.md) D-11). **Nunca**: correos, seudónimos de otras
+personas, datos de otros proyectos, claves ni cookies.
 
 ### Estructura de los prompts
 
@@ -296,8 +301,13 @@ prompt o aprobar la compuerta) comprobando que no cambian ningún estado (ver D-
 ### Costos, límites, versionado
 
 - Límites: tamaño de mensaje (2 000 caracteres), tokens máximos de salida, historial acotado,
-  solicitudes por minuto por persona, presupuesto diario de tokens por proyecto. Al agotarse:
-  `AI_BUDGET_EXCEEDED` y las reglas siguen funcionando (SC-009). Valores a calibrar (U-02).
+  solicitudes por minuto por persona, **presupuesto diario global** de tokens (por debajo del cupo
+  gratuito de Groq, que es por organización y modelo) y **presupuesto diario por proyecto** (fracción
+  del global). Las cabeceras de límite del proveedor prevalecen sobre el contador local. Al
+  agotarse: `AI_BUDGET_EXCEEDED` con la hora de restablecimiento y las reglas siguen funcionando
+  (SC-009). Un solo modelo configurado, sin proveedores ni modelos de respaldo, para mantener
+  comparable el experimento. Valores a calibrar (U-02); términos de datos y estabilidad del plan
+  gratuito por confirmar (U-07).
 - Cada interacción guarda `provider`, `model`, `model_config`, `prompt_version`, tokens y latencia
   (FR-025, SC-008). Cambiar el prompt exige nueva carpeta `v2/` y registrar la versión.
 - Distinción A/B (Scrum Guide vs. criterios del prototipo): el catálogo marca el origen de cada
@@ -433,7 +443,7 @@ guardas de autorización.
 | 001 | auth | 021 | agent |
 | 002–003 | projects | 022 | agent, frontend (`SourceBadge`) |
 | 004 | projects, activity | 023 | validation, flow |
-| 005–006 | sprints, frontend | 024 | agent |
+| 005–006 | sprints, frontend | 024, 024a | agent (límites y presupuesto) |
 | 007 | frontend | 025 | agent |
 | 008 | backlog | 026 | activity, sprints, flow |
 | 009–010 | validation, backlog | 027–028 | export |
@@ -477,6 +487,7 @@ Ninguna otra desviación de la Constitución.
 ## Incertidumbres abiertas
 
 Resumen (detalle en [research.md](research.md#incertidumbres-reales-no-resueltas-sin-inventar-requisitos)):
-U-01 proveedor/modelo de LLM; U-02 límites y presupuesto de IA; U-03 precios y copias del hosting;
-U-04 calibración de heurísticas y diccionario de términos vagos; U-05 contraste de referencias con la
-Scrum Guide 2020; U-06 reidentificación por contexto en equipos pequeños.
+U-01 modelo concreto de Groq (el proveedor ya está decidido); U-02 cupo real y presupuestos de IA;
+U-03 precios y copias del hosting; U-04 calibración de heurísticas y diccionario de términos vagos;
+U-05 contraste de referencias con la Scrum Guide 2020; U-06 reidentificación por contexto en
+equipos pequeños; U-07 estabilidad de los límites gratuitos y términos de datos de Groq.

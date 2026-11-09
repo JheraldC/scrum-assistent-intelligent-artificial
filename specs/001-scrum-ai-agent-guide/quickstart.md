@@ -13,7 +13,9 @@
 - Node.js LTS (≥ 22) y npm.
 - Docker (para PostgreSQL local y de pruebas).
 - Git.
-- Opcional: una clave de API de un proveedor de LLM (solo para pruebas manuales con IA real).
+- Una cuenta gratuita de Groq y su clave de API (solo para pruebas manuales con IA real; las
+  pruebas automáticas usan IA simulada y no la necesitan). Consulte en su consola los límites reales
+  de la cuenta (U-02).
 
 ## 2. Instalación
 
@@ -31,10 +33,10 @@ Edite `.env` (nunca se versiona). Variables principales (ver [plan.md](plan.md#a
 | `DATABASE_URL` | `postgresql://…@localhost:5432/scrum_dev` | Base de desarrollo |
 | `TEST_DATABASE_URL` | `postgresql://…@localhost:5433/scrum_test` | Base independiente para pruebas |
 | `SESSION_SECRET` | cadena aleatoria larga | Firma/derivación de sesión |
-| `LLM_PROVIDER` | `fake` (por defecto en desarrollo) o `anthropic` / `openai-compatible` | `fake` está prohibido en producción |
-| `LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL` | vacío con `fake` | Proveedor real (opcional) |
+| `LLM_PROVIDER` | `fake` (por defecto en desarrollo) u `openai-compatible` (Groq) | `fake` está prohibido en producción |
+| `LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL` | vacío con `fake`; con Groq: modelo del piloto, su clave y su endpoint compatible | Proveedor real (opcional en desarrollo) |
 | `LLM_TIMEOUT_MS`, `LLM_MAX_OUTPUT_TOKENS`, `LLM_TEMPERATURE` | valores por defecto | Configuración registrada en cada interacción |
-| `AI_USER_RATE_PER_MINUTE`, `AI_DAILY_TOKEN_BUDGET_PER_PROJECT` | valores por defecto | Límites de consumo |
+| `AI_USER_RATE_PER_MINUTE`, `AI_DAILY_TOKEN_BUDGET_GLOBAL`, `AI_DAILY_TOKEN_BUDGET_PER_PROJECT` | valores por defecto | Límites de consumo; el global debe quedar por debajo del cupo diario gratuito de la cuenta de Groq |
 
 ## 3. Base de datos y arranque en desarrollo
 
@@ -76,7 +78,7 @@ Cada escenario indica el criterio de éxito de la spec que comprueba. Con la IA 
 | V5 | Con dos cuentas, intentar abrir el proyecto de la otra o ejecutar acciones de Facilitador siendo Participante | 404 / 403; no se muestra ningún dato ajeno | SC-005 |
 | V6 | Exportar JSON y cada CSV; comparar con la pantalla *Historial* y buscar los correos de las cuentas | Los datos coinciden; no aparece ningún correo; vacíos sin rellenar | SC-006, SC-007 |
 | V7 | Consultar el historial de interacciones del asistente | Cada una muestra modelo, versión de prompt y estado | SC-008 |
-| V8 | Detener o invalidar el proveedor de IA (`LLM_PROVIDER` con clave errónea o guion de fallo del fake) y evaluar una compuerta | La compuerta se evalúa con reglas; la interfaz avisa que la IA no está disponible | SC-009 |
+| V8 | Detener o invalidar el proveedor de IA (clave errónea, guion de fallo del fake) y agotar el presupuesto diario (valor bajo en `.env`), y evaluar una compuerta | La compuerta se evalúa con reglas; la interfaz avisa que la IA no está disponible o que se agotó el cupo, con la hora de restablecimiento | SC-009 |
 | V9 | Recorrer las pantallas con ancho de 375 px | Sin desplazamiento horizontal; todo utilizable | SC-010 |
 | V10 | Seguir esta guía desde cero en otra máquina | El producto y sus pruebas se ejecutan solo con la documentación | SC-011 |
 

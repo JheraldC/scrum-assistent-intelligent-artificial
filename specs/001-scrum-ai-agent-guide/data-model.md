@@ -253,7 +253,8 @@ Solo se permite sobre un `validation_run` con `status='FAILED'` y vigente (misma
 | created_at | timestamptz | NOT NULL |
 
 Índices: `(project_id, created_at)`, `(project_id, user_id, created_at)` (historial y
-presupuesto diario).
+presupuesto por proyecto), `(created_at)` (presupuesto diario global de tokens: suma de
+`input_tokens + output_tokens` del día UTC).
 
 ### activity_log (registro de actividades, FR-004, FR-026)
 | Campo | Tipo | Restricciones |

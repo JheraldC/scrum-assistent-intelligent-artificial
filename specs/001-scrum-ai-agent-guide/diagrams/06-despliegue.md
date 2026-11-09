@@ -35,7 +35,7 @@ flowchart TB
             PGPROD[("PostgreSQL persistente<br/>conexión TLS")]
         end
         WEB -- "SQL sobre TLS" --> PGPROD
-        WEB -- "HTTPS" --> LLMP["Proveedor LLM"]
+        WEB -- "HTTPS" --> LLMP["Groq (plan gratuito)"]
         BK["Copias: restauración del proveedor + pg_dump cifrado<br/>antes de sesiones y migraciones"] -.-> PGPROD
     end
 

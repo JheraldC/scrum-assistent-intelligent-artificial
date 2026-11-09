@@ -12,7 +12,7 @@ sequenceDiagram
     participant ENG as Motor de reglas (puro)
     participant DB as PostgreSQL
     participant AG as Servicio de agente
-    participant LLM as Proveedor LLM
+    participant LLM as Groq (LLM)
 
     P->>UI: Pulsa "Evaluar planificación"
     UI->>API: POST /projects/{id}/validations (cookie + CSRF)

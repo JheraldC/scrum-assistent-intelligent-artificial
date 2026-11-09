@@ -1,7 +1,7 @@
 # Arquitectura general
 
 Vista de alto nivel: un navegador, un servicio (API + estáticos), una base de datos y un proveedor de
-IA externo. Decisiones en [research.md](../research.md) (D-02, D-09, D-15).
+IA externo (Groq). Decisiones en [research.md](../research.md) (D-02, D-09, D-15).
 
 ```mermaid
 flowchart LR
@@ -13,7 +13,7 @@ flowchart LR
         S --- API
     end
     DB[("PostgreSQL gestionado<br/>datos persistentes")]
-    LLM["Proveedor de LLM<br/>(API externa configurable)"]
+    LLM["Groq (API compatible con OpenAI)<br/>plan gratuito, cupo diario compartido"]
 
     U -- "HTTPS: páginas y /api<br/>cookie de sesión + CSRF" --> S
     API -- "SQL (Prisma)<br/>transacciones" --> DB

@@ -107,8 +107,11 @@ encargo y no se re-evalúan; aquí solo se justifica lo que quedaba abierto. No 
 ## D-09. Servicio del LLM
 
 - **Decisión**: interfaz propia `LlmProvider` con un único método `complete(request)` que devuelve
-  texto + metadatos (modelo, tokens, latencia). Adaptadores: `anthropic`, `openai-compatible` y
-  `fake` (solo pruebas). Variables: `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`
+  texto + metadatos (modelo, tokens, latencia). Adaptadores: `openai-compatible` (proveedor
+  por defecto: **Groq**, cuya API usa ese formato; `LLM_BASE_URL` apunta a su endpoint) y `fake`
+  (solo pruebas). Decisión del equipo (2026-11-09): **Groq con su plan gratuito**; el modelo
+  concreto se elige en un piloto entre los disponibles en el plan gratuito (las fuentes consultadas
+  mencionan gpt-oss-120b y Qwen; se reporta que Llama salió del plan gratuito, por confirmar). Variables: `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`
   (opcional), `LLM_TIMEOUT_MS`, `LLM_MAX_OUTPUT_TOKENS`, `LLM_TEMPERATURE`. Se llama con `fetch`
   nativo y `AbortSignal.timeout`; sin SDK obligatorio, para no atar el diseño a un proveedor.
 - **Salidas estructuradas**: se pide JSON conforme a [contracts/ai-response.schema.json](contracts/ai-response.schema.json)
@@ -137,12 +140,31 @@ encargo y no se re-evalúan; aquí solo se justifica lo que quedaba abierto. No 
 
 ## D-11. Costes y límites de consumo de IA
 
-- **Decisión**: límites configurables: tamaño máximo del mensaje (p. ej. 2 000 caracteres), máximo
-  de salida del modelo, historial de conversación acotado (últimas 6 interacciones), límite por
-  usuario (p. ej. 10 solicitudes/minuto) y presupuesto diario de tokens por proyecto
-  (`AI_DAILY_TOKEN_BUDGET_PER_PROJECT`). Al agotarse el presupuesto, el asistente informa y las
-  reglas siguen funcionando. Se registran tokens de entrada/salida por interacción.
-- Los valores concretos se calibrarán con el coste real del proveedor elegido (incertidumbre U-02).
+- **Contexto**: el plan gratuito de Groq limita los tokens **por día, por organización y por modelo**
+  (las fuentes citan ~200 000 tokens/día, 30 solicitudes/minuto y ~1 000 solicitudes/día; el tope de
+  tokens es el que manda). Ese cupo lo comparten **todos** los equipos de la aplicación. Con ~5 500
+  tokens por interacción alcanzan unas 36 interacciones al día; por eso el diseño reduce el consumo
+  y reparte el cupo.
+- **Decisión**: límites configurables en la aplicación:
+  - tamaño máximo del mensaje (p. ej. 2 000 caracteres) y máximo de salida del modelo;
+  - **contexto objetivo ≤ 2 500 tokens de entrada** (instantánea del artefacto en foco, criterios
+    incumplidos y como máximo las últimas 4 interacciones; se recorta por prioridad), lo que sube
+    el cupo a unas 80 interacciones diarias;
+  - límite por persona (p. ej. 10 solicitudes/minuto);
+  - **presupuesto diario global** de tokens (`AI_DAILY_TOKEN_BUDGET_GLOBAL`, por debajo del cupo del
+    proveedor, p. ej. 85 %) y **presupuesto diario por proyecto**
+    (`AI_DAILY_TOKEN_BUDGET_PER_PROJECT`, una fracción del global) para que un equipo no agote el
+    cupo de los demás; el día se mide en UTC y se contrasta con las cabeceras de límite que envíe
+    el proveedor, que prevalecen sobre el contador local;
+  - ante `429` del proveedor, un reintento breve respetando `retry-after` y, si persiste,
+    `BUDGET_EXCEEDED`.
+  Al agotarse cualquier límite el asistente informa con un mensaje claro (incluida la hora de
+  restablecimiento) y las reglas siguen funcionando (SC-009). Se registran tokens por interacción.
+- **Sin cambio de modelo automático**: para mantener comparable el experimento (Principio VI) hay un
+  solo modelo configurado; no se encadenan modelos ni proveedores de respaldo. Si el cupo gratuito
+  no basta, la opción es el plan de pago del mismo proveedor (por confirmar) o ajustar los
+  presupuestos, no cambiar de modelo a mitad del experimento.
+- Los valores concretos se calibrarán en el piloto con el cupo real de la cuenta (incertidumbre U-02).
 
 ## D-12. Marcas de tiempo y duraciones
 
@@ -231,8 +253,9 @@ encargo y no se re-evalúan; aquí solo se justifica lo que quedaba abierto. No 
 
 | ID | Incertidumbre | Impacto | Cómo se resuelve |
 |----|---------------|---------|------------------|
-| U-01 | Proveedor y modelo de LLM concretos | Coste, latencia, calidad de sugerencias | Decisión del equipo; el diseño es agnóstico (D-09). Prueba piloto de 5–10 casos antes de fijarlo |
-| U-02 | Valores de límites y presupuesto de tokens | Coste y experiencia | Calibrar con el coste real del proveedor elegido |
+| U-01 | **Modelo** concreto de Groq (el proveedor ya está decidido) y su disponibilidad en el plan gratuito | Calidad en español, fiabilidad del JSON estructurado, latencia | Piloto de 5–10 casos en español con 2–3 modelos disponibles; fijar uno y registrar su identificador |
+| U-02 | Cupo real de la cuenta (tokens/día, solicitudes/minuto) y valores de los presupuestos de la aplicación | Experiencia y capacidad para varios equipos | Consultar los límites en la consola de Groq y calibrar `AI_DAILY_TOKEN_BUDGET_*` en el piloto |
+| U-07 | Estabilidad de los límites gratuitos y términos de datos del plan gratuito de Groq (retención/uso de datos); las fuentes se contradicen | Disponibilidad del asistente y privacidad | Leer las condiciones oficiales antes del experimento; avisar a los participantes de no escribir datos personales; plan B: plan de pago del mismo proveedor |
 | U-03 | Precios y límites vigentes de hosting (Render/Neon) y condiciones de copia de seguridad del plan gratuito | Coste y riesgo de pérdida de datos | Verificar en las páginas oficiales antes del despliegue (tarea previa) |
 | U-04 | Calidad de la heurística léxica de coherencia y del diccionario de términos vagos en español | Falsos positivos/negativos en compuertas | Calibrar con casos de prueba reales del curso; versionar `catalogVersion` en cada cambio |
 | U-05 | Redacción exacta de los elementos oficiales de la Scrum Guide 2020 citados en el catálogo | Rigor de la clasificación oficial/adicional (Principio III) | Contrastar cada referencia con el texto de la guía antes de cerrar el catálogo |

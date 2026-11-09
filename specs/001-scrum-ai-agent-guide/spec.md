@@ -25,6 +25,9 @@ Los equipos novatos suelen omitir o ejecutar de forma incompleta los eventos y a
 - Q: ¿Cómo debe acceder el equipo a la aplicación durante una sesión? → A: Despliegue en internet con varios equipos simultáneos y datos centralizados.
 - Q: ¿Cómo debe identificarse cada persona y asignársele su rol? → A: Cuentas con correo y contraseña para todos; el Facilitador (Scrum Master) puede gestionar varios proyectos y asigna roles de forma independiente en cada proyecto.
 - Q: ¿Qué parte del experimento debe vivir en el software? → A: El experimento se hace manualmente fuera de la aplicación; el producto es siempre con IA (sin interruptor ni modo sin IA) y solo registra y exporta datos objetivos. Esto sustituye lo anterior sobre puntuación a ciegas y retención de datos de investigación, que quedan fuera de alcance (ver Funcionalidades Futuras).
+- Q: ¿Quién puede crear un proyecto nuevo? → A: Cualquier persona con cuenta; quien lo crea queda como Facilitador de ese proyecto.
+- Q: ¿Puede un proyecto tener varios Sprints dentro del MVP? → A: Sí, varios Sprints consecutivos con uno abierto a la vez; el Facilitador crea el siguiente al cerrar el anterior; sin métricas de velocidad.
+- Q: ¿El registro es abierto o con invitación? → A: Registro abierto: cualquier persona puede crear una cuenta; el consumo de IA se acota con límites de uso.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -39,7 +42,7 @@ Una persona se registra con correo y contraseña e inicia sesión. Un Facilitado
 **Acceptance Scenarios**:
 
 1. **Given** una persona sin cuenta, **When** se registra con correo y contraseña válidos, **Then** puede iniciar sesión.
-2. **Given** un Facilitador autenticado, **When** crea un proyecto con nombre, descripción y objetivo del producto válidos, **Then** aparece en su lista y puede seleccionarlo; puede crear más proyectos.
+2. **Given** una persona autenticada, **When** crea un proyecto con nombre, descripción y objetivo del producto válidos, **Then** aparece en su lista y puede seleccionarlo; puede crear más proyectos.
 3. **Given** un Facilitador con dos proyectos, **When** asigna a una persona el rol Participante en uno y Facilitador en otro, **Then** cada rol se aplica solo en su proyecto.
 4. **Given** una persona sin rol en un proyecto, **When** intenta acceder a él, **Then** el acceso se rechaza.
 5. **Given** un formulario de proyecto con nombre vacío, **When** se envía, **Then** se muestra un error en español y no se crea.
@@ -157,6 +160,7 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 - Dos personas editan a la vez el mismo artefacto: se avisa del conflicto sin perder cambios en silencio.
 - Servicio de IA con tiempo agotado, respuesta con formato inválido o sin credenciales: se muestra error, las reglas siguen operando y se registra el incidente.
 - Credenciales incorrectas, correo ya registrado o contraseña débil: mensajes claros sin revelar información sensible.
+- Uso excesivo del asistente (por una persona o un proyecto): se rechaza con mensaje claro al superar el límite; las reglas siguen operativas.
 - Persona eliminada de un proyecto: pierde el acceso; los artefactos que creó se conservan.
 - Exportar un proyecto sin datos o solo con datos de ejemplo: se informa y no se genera un archivo engañoso.
 - Pantallas pequeñas (móvil): el flujo sigue siendo utilizable.
@@ -167,7 +171,7 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 
 **Cuentas, proyectos y roles**
 - **FR-001**: El sistema MUST permitir registrarse e iniciar sesión con correo y contraseña, y MUST rechazar el acceso a proyectos en los que la persona no tiene un rol.
-- **FR-002**: Un Facilitador MUST poder crear y gestionar varios proyectos con nombre, descripción y objetivo del producto, validando campos obligatorios, y MUST poder asignar en cada proyecto un rol independiente (Participante o Facilitador) a cada persona; una misma persona MUST poder tener roles distintos en proyectos distintos.
+- **FR-002**: Cualquier persona con cuenta MUST poder crear proyectos con nombre, descripción y objetivo del producto, validando campos obligatorios, y queda como Facilitador de cada proyecto que crea; un Facilitador MUST poder gestionar varios proyectos y MUST poder asignar en cada proyecto un rol independiente (Participante o Facilitador) a cada persona; una misma persona MUST poder tener roles distintos en proyectos distintos.
 - **FR-003**: Las funciones restringidas por rol (autorizar excepciones, gestionar miembros, exportar) MUST aplicarse según el rol de la persona en ese proyecto y MUST rechazarse en caso contrario.
 - **FR-004**: El sistema MUST mostrar el estado de cada proyecto y un historial cronológico de actividades y artefactos.
 
@@ -182,7 +186,7 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 - **FR-010**: El sistema MUST identificar historias ambiguas o insuficientemente definidas y proponer mejoras concretas.
 
 **Sprint Planning y compuertas**
-- **FR-011**: El sistema MUST permitir definir el Sprint Goal, seleccionar elementos del Product Backlog y registrar el plan de trabajo.
+- **FR-011**: El sistema MUST permitir definir el Sprint Goal, seleccionar elementos del Product Backlog y registrar el plan de trabajo; un proyecto MUST poder tener varios Sprints consecutivos con un solo Sprint abierto a la vez, y solo un Facilitador MUST poder crear el siguiente cuando el anterior esté cerrado.
 - **FR-012**: El sistema MUST evaluar la compuerta de planificación (existencia y comprensibilidad del objetivo, y coherencia entre objetivo, trabajo seleccionado y plan) y mostrar el resultado individual de cada criterio.
 - **FR-013**: El sistema MUST impedir el avance entre etapas con compuerta mientras sus criterios obligatorios no se cumplan, salvo excepción manual registrada.
 - **FR-014**: El sistema MUST permitir corregir artefactos y reevaluar cualquier compuerta tantas veces como sea necesario.
@@ -200,6 +204,7 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 - **FR-022**: El sistema MUST distinguir visualmente las recomendaciones de IA de las comprobaciones basadas en reglas, y MUST advertir que las recomendaciones de IA no son verdades garantizadas.
 - **FR-023**: La IA MUST complementar y no sustituir las reglas deterministas: el resultado de una compuerta MUST depender solo de reglas explícitas.
 - **FR-024**: El sistema MUST validar el formato de las respuestas del modelo y gestionar errores, tiempos de espera y respuestas inválidas sin interrumpir las comprobaciones por reglas.
+- **FR-024a**: Dado que el registro es abierto, el sistema MUST limitar el uso del asistente (por persona en el tiempo y por proyecto por día); al alcanzar un límite MUST informarlo con un mensaje claro y las comprobaciones por reglas MUST seguir funcionando.
 - **FR-025**: El sistema MUST registrar cada interacción del agente con la versión del modelo y la configuración relevante.
 
 **Registro y exportación**
@@ -229,7 +234,7 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 - Rúbrica de puntuación en la aplicación, evaluación a ciegas y rol Evaluador.
 - Panel de resultados y comparación entre condiciones.
 - Retención y borrado de datos de investigación a nivel de aplicación.
-- Múltiples Sprints encadenados con métricas de velocidad; burndown/burnup.
+- Métricas de velocidad entre Sprints; burndown/burnup.
 - Recuperación de contraseña, verificación de correo e inicio de sesión con proveedores externos.
 - Integración con Jira, Trello o GitHub; notificaciones y edición colaborativa en tiempo real.
 - Idiomas distintos al español.
@@ -272,5 +277,6 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 - El producto siempre incluye el agente de IA; el experimento (Scrum tradicional vs. con IA) y la rúbrica se gestionan manualmente fuera de la aplicación con los datos exportados.
 - Las compuertas por reglas están siempre activas; las excepciones manuales solo las autoriza el Facilitador del proyecto.
 - Se dispone de un servicio de IA externo con credenciales gestionadas fuera del código; sin credenciales, el sistema sigue funcionando con reglas.
+- El servicio de IA se usa con un plan gratuito de cupo diario pequeño y compartido entre todos los equipos; cuando el cupo se agota el asistente no está disponible hasta su restablecimiento, y las comprobaciones por reglas no se ven afectadas.
 - La interfaz y el contenido están solo en español; los datos de ejemplo se cargan de forma explícita y se marcan como tales.
 - El Facilitador y los Participantes de un proyecto ya acuerdan fuera de la aplicación quién es el Facilitador; el sistema no impone la composición del equipo Scrum.

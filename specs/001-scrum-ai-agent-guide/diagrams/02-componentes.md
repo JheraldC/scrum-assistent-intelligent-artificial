@@ -43,7 +43,7 @@ flowchart TB
     EXP --> ACT
     AUTH & PROJ & BACK & SPR & ART & FLOW & AG & ACT & EXP --> PRISMA
     BACK & SPR & ART & FLOW & AG & EXP --> ACT
-    AG -. "HTTPS" .-> LLM["LlmProvider (anthropic · openai-compatible · fake)"]
+    AG -. "HTTPS" .-> LLM["LlmProvider (openai-compatible → Groq · fake)"]
 ```
 
 | Módulo | Responsabilidad | Expone a otros módulos |
