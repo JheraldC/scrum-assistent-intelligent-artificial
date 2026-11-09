@@ -309,6 +309,7 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Review' } } } }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Problem' }
   /projects/{projectId}/sprints/{sprintId}/retrospective:
     parameters:
       - { $ref: '#/components/parameters/projectId' }
@@ -542,10 +543,11 @@ components:
       properties:
         kind: { type: string, enum: [USER_STORY, ITEM] }
         title: { type: string, minLength: 1, maxLength: 120 }
-        asA: { type: string, maxLength: 200 }
-        iWant: { type: string, maxLength: 500 }
-        soThat: { type: string, maxLength: 500 }
-        description: { type: string, maxLength: 2000 }
+        # En la respuesta valen null los campos que no se indicaron.
+        asA: { type: [string, 'null'], maxLength: 200 }
+        iWant: { type: [string, 'null'], maxLength: 500 }
+        soThat: { type: [string, 'null'], maxLength: 500 }
+        description: { type: [string, 'null'], maxLength: 2000 }
         acceptanceCriteria: { type: array, maxItems: 20, items: { type: string, maxLength: 300 } }
         priority: { type: integer, minimum: 1 }
     BacklogItem:
@@ -586,7 +588,7 @@ components:
         status: { $ref: '#/components/schemas/StageStatus' }
         startedAt: { type: [string, 'null'], format: date-time }
         completedAt: { type: [string, 'null'], format: date-time }
-        gateState: { $ref: '#/components/schemas/GateState' }
+        gateState: { oneOf: [{ $ref: '#/components/schemas/GateState' }, { type: 'null' }], description: 'null en etapas sin compuerta' }
     GateState:
       type: string
       description: Estado derivado de la compuerta para la versión actual del objetivo
@@ -671,7 +673,7 @@ components:
                     title: { type: string }
                     origin: { type: string, enum: [OFFICIAL, ADDITIONAL] }
                     mandatory: { type: boolean }
-                    scrumGuideNote: { type: string, description: Referencia resumida para criterios oficiales }
+                    scrumGuideNote: { type: [string, 'null'], description: Referencia resumida para criterios oficiales (null en los adicionales) }
     CriterionResult:
       type: object
       required: [criterionId, origin, mandatory, outcome, source]
