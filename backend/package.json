@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run --config vitest.config.ts --project unit --passWithNoTests",
     "test:integration": "vitest run --config vitest.config.ts --project integration",
+    "test:perf": "vitest run --config vitest.config.ts --project perf",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",

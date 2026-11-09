@@ -47,6 +47,10 @@ const routes: RouteCase[] = [
   { method: 'patch', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}`, body: () => ({ sprintGoal: 'x', expectedVersion: 1 }) },
   { method: 'put', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/items`, body: () => ({ itemIds: [], expectedVersion: 1 }) },
   { method: 'post', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/stages/PLANNING/complete` },
+  // US4: asistente de IA
+  { method: 'post', path: (c) => `/projects/${c.projectId}/agent/chat`, body: () => ({ message: '¿Qué le falta a mi historia?' }) },
+  { method: 'get', path: (c) => `/projects/${c.projectId}/agent/interactions` },
+  { method: 'post', path: (c) => `/projects/${c.projectId}/validations/${c.otherUserId}/ai-feedback` },
   // US6: exportación (solo Facilitador)
   { method: 'get', path: (c) => `/projects/${c.projectId}/export?format=json`, facilitatorOnly: true },
   { method: 'get', path: (c) => `/projects/${c.projectId}/export?format=csv&dataset=activities`, facilitatorOnly: true },

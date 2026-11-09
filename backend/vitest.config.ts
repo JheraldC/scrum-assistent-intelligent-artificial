@@ -22,6 +22,18 @@ export default defineConfig({
           globalSetup: ['tests/helpers/global-setup.ts'],
         },
       },
+      {
+        test: {
+          name: 'perf',
+          include: ['tests/perf/**/*.test.ts'],
+          environment: 'node',
+          fileParallelism: false,
+          hookTimeout: 120_000,
+          testTimeout: 120_000,
+          setupFiles: ['tests/helpers/setup-env.ts'],
+          globalSetup: ['tests/helpers/global-setup.ts'],
+        },
+      },
     ],
   },
 });

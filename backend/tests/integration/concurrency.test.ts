@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, type TestApp } from '../helpers/app.js';
 import { closeTestDb, getTestDb, resetDb } from '../helpers/db.js';
 import { createProject, createUser } from '../helpers/factories.js';
-import { createScenario, evaluatePlan, fillPlan, getSprint, type Scenario } from '../helpers/scenario.js';
+import { createScenario, evaluatePlan, fillPlan, getRetro, getSprint, retroBuena, retroUrl, type Scenario } from '../helpers/scenario.js';
 
 /** Concurrencia (T075, FR-036, SC-003). La fase final (T136) amplía este archivo. */
 describe('ejecución concurrente', () => {
@@ -69,5 +69,37 @@ describe('ejecución concurrente', () => {
       s.ana.client.put(`${s.base}/items`, { itemIds: [], expectedVersion: 1 }),
     ]);
     expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
+  });
+
+  it('dos Facilitadores que se degradan a la vez: el proyecto conserva al menos uno (T137)', async () => {
+    const beto = await createUser(t.app, 'beto');
+    await s.ana.client.post(`/projects/${s.projectId}/members`, { email: beto.email, role: 'FACILITATOR' });
+    const [a, b] = await Promise.all([
+      s.ana.client.patch(`/projects/${s.projectId}/members/${beto.id}`, { role: 'PARTICIPANT' }),
+      beto.client.patch(`/projects/${s.projectId}/members/${s.ana.id}`, { role: 'PARTICIPANT' }),
+    ]);
+    // Uno de los dos puede perder el permiso antes de actuar (403); nunca quedan cero Facilitadores.
+    expect([a.statusCode, b.statusCode].some((c) => c === 200)).toBe(true);
+    expect(await getTestDb().projectMember.count({ where: { projectId: s.projectId, role: 'FACILITATOR' } })).toBeGreaterThanOrEqual(1);
+  });
+
+  it('dos Facilitadores que se quitan a la vez: el proyecto conserva al menos uno (T137)', async () => {
+    const beto = await createUser(t.app, 'beto');
+    await s.ana.client.post(`/projects/${s.projectId}/members`, { email: beto.email, role: 'FACILITATOR' });
+    await Promise.all([
+      s.ana.client.delete(`/projects/${s.projectId}/members/${beto.id}`),
+      beto.client.delete(`/projects/${s.projectId}/members/${s.ana.id}`),
+    ]);
+    expect(await getTestDb().projectMember.count({ where: { projectId: s.projectId, role: 'FACILITATOR' } })).toBeGreaterThanOrEqual(1);
+  });
+
+  it('dos PUT simultáneos de la retrospectiva con la misma versión: uno gana y el otro recibe 409 (T137)', async () => {
+    const retro = await getRetro(s);
+    const [a, b] = await Promise.all([
+      s.ana.client.put(retroUrl(s), { ...retroBuena, positives: ['A'], expectedVersion: retro.version }),
+      s.ana.client.put(retroUrl(s), { ...retroBuena, positives: ['B'], expectedVersion: retro.version }),
+    ]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
+    expect((await getRetro(s)).version).toBe(retro.version + 1);
   });
 });
