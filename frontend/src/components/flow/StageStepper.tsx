@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { STAGE_TYPES, type StageStatus, type StageType } from '@scrum/shared';
 import type { Stage } from '../../api/types';
 import { es } from '../../i18n/es';
+import { GateStateBadge } from '../validation/GateStateBadge';
 
 const statusStyle: Record<StageStatus, { icon: string; classes: string }> = {
   PENDING: { icon: '○', classes: 'border-[var(--color-border)] text-[var(--color-muted)]' },
@@ -36,6 +37,11 @@ export function StageStepper({ stages, renderStage }: Props) {
               {es.flow.stageStatus[stage.status]}
             </p>
             <p className="text-sm text-[var(--color-text)]">{text.help}</p>
+            {stage.gateState ? (
+              <p className="mt-2 text-[var(--color-text)]">
+                <GateStateBadge state={stage.gateState} />
+              </p>
+            ) : null}
             {renderStage ? <div className="mt-3 text-[var(--color-text)]">{renderStage(stage)}</div> : null}
           </li>
         );

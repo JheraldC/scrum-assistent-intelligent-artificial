@@ -1,5 +1,6 @@
 import type { CriterionResultDto, GateId, Outcome } from '@scrum/shared';
 import { getGate } from './catalog/index.js';
+import { PLAN_RULES, type PlanSnapshot } from './rules/plan.js';
 import { STORY_RULES, type StorySnapshot } from './rules/story.js';
 import type { RuleOutput, RuleSet } from './rules/types.js';
 
@@ -57,11 +58,14 @@ export function evaluateWithRules<S>(gateId: GateId, snapshot: S, rules: RuleSet
 
 /** Reglas por compuerta; se amplía con GATE-PLAN, GATE-REVIEW y GATE-RETRO en sus historias. */
 export function evaluate(gateId: 'GATE-STORY', snapshot: StorySnapshot): EngineRun;
+export function evaluate(gateId: 'GATE-PLAN', snapshot: PlanSnapshot): EngineRun;
 export function evaluate(gateId: GateId, snapshot: never): EngineRun;
 export function evaluate(gateId: GateId, snapshot: unknown): EngineRun {
   switch (gateId) {
     case 'GATE-STORY':
       return evaluateWithRules(gateId, snapshot as StorySnapshot, STORY_RULES);
+    case 'GATE-PLAN':
+      return evaluateWithRules(gateId, snapshot as PlanSnapshot, PLAN_RULES);
     default:
       return { status: 'ERROR', results: [], error: `La compuerta ${gateId} aún no está disponible` };
   }

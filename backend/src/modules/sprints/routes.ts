@@ -1,15 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { EvidenceInputSchema, StageTypeSchema } from '@scrum/shared';
+import { EvidenceInputSchema, SprintItemsSchema, SprintUpdateSchema, StageTypeSchema } from '@scrum/shared';
 import { requireProjectRole } from '../../platform/access.js';
 import { AppError } from '../../platform/errors.js';
 import { requireAuth } from '../auth/index.js';
-import { addEvidence, createSprint, getSprint, listEvidence, listSprints } from './service.js';
+import { addEvidence, createSprint, getSprint, listEvidence, listSprints, setSprintItems, updateSprint } from './service.js';
 
 const SprintParams = z.object({ projectId: z.uuid(), sprintId: z.uuid() });
 const StageParams = SprintParams.extend({ stageType: StageTypeSchema });
 
-function parseParams<T extends z.ZodType>(schema: T, params: unknown): z.infer<T> {
+export function parseParams<T extends z.ZodType>(schema: T, params: unknown): z.infer<T> {
   const parsed = schema.safeParse(params);
   if (!parsed.success) throw AppError.notFound('No se encontró el recurso solicitado.');
   return parsed.data;
@@ -36,6 +36,18 @@ export async function sprintsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/projects/:projectId/sprints/:sprintId', { preHandler: anyMember }, async (request) => {
     const { projectId, sprintId } = parseParams(SprintParams, request.params);
     return getSprint(app.db, projectId, sprintId);
+  });
+
+  app.patch('/projects/:projectId/sprints/:sprintId', { preHandler: anyMember }, async (request) => {
+    const { projectId, sprintId } = parseParams(SprintParams, request.params);
+    const input = SprintUpdateSchema.parse(request.body);
+    return updateSprint(app.db, app.clock, request.user!.id, projectId, sprintId, input);
+  });
+
+  app.put('/projects/:projectId/sprints/:sprintId/items', { preHandler: anyMember }, async (request) => {
+    const { projectId, sprintId } = parseParams(SprintParams, request.params);
+    const input = SprintItemsSchema.parse(request.body);
+    return setSprintItems(app.db, app.clock, request.user!.id, projectId, sprintId, input);
   });
 
   app.get(

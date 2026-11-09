@@ -18,6 +18,19 @@ const storyCriteria: CriterionDef[] = [
   { id: 'STORY-08', title: 'El beneficio no repite la necesidad', origin: 'ADDITIONAL', mandatory: false, dimension: 'coherencia' },
 ];
 
+const SPRINT_BACKLOG_NOTE =
+  'La Scrum Guide 2020 describe el Sprint Backlog como el Sprint Goal, los elementos seleccionados del Product Backlog y un plan accionable para entregarlos.';
+
+const planCriteria: CriterionDef[] = [
+  { id: 'PLAN-01', title: 'Existe un Sprint Goal', origin: 'OFFICIAL', mandatory: true, scrumGuideNote: SPRINT_BACKLOG_NOTE },
+  { id: 'PLAN-02', title: 'Hay al menos un elemento del Product Backlog seleccionado', origin: 'OFFICIAL', mandatory: true, scrumGuideNote: SPRINT_BACKLOG_NOTE },
+  { id: 'PLAN-03', title: 'Existe un plan de trabajo registrado', origin: 'OFFICIAL', mandatory: true, scrumGuideNote: SPRINT_BACKLOG_NOTE },
+  { id: 'PLAN-04', title: 'El Sprint Goal es comprensible (5 a 40 palabras, sin términos vagos)', origin: 'ADDITIONAL', mandatory: true, dimension: 'claridad' },
+  { id: 'PLAN-05', title: 'El Sprint Goal tiene relación con los elementos seleccionados', origin: 'ADDITIONAL', mandatory: true, dimension: 'coherencia' },
+  { id: 'PLAN-06', title: 'El plan de trabajo menciona cada elemento seleccionado', origin: 'ADDITIONAL', mandatory: true, dimension: 'coherencia' },
+  { id: 'PLAN-07', title: 'Las historias seleccionadas tienen una evaluación aprobada vigente', origin: 'ADDITIONAL', mandatory: true, dimension: 'completitud' },
+];
+
 /** Las compuertas se añaden a medida que se implementan sus historias (GATE-PLAN, GATE-REVIEW, GATE-RETRO). */
 export const GATES: GateDef[] = [
   {
@@ -26,6 +39,14 @@ export const GATES: GateDef[] = [
     targetType: 'BACKLOG_ITEM',
     blocking: false,
     criteria: storyCriteria,
+  },
+  {
+    gateId: 'GATE-PLAN',
+    title: 'Planificación del Sprint',
+    targetType: 'SPRINT',
+    // Control del prototipo (no una regla de Scrum): bloquea iniciar el seguimiento del Sprint.
+    blocking: true,
+    criteria: planCriteria,
   },
 ];
 

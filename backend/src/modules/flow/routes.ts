@@ -1,15 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { EvaluateRequestSchema, ValidationQuerySchema } from '@scrum/shared';
+import { EvaluateRequestSchema, GateExceptionInputSchema, StageTypeSchema, ValidationQuerySchema } from '@scrum/shared';
 import { requireProjectRole } from '../../platform/access.js';
 import { AppError } from '../../platform/errors.js';
 import { requireAuth } from '../auth/index.js';
-import { criteriaCatalog, evaluateGate, getRun, listRuns } from './service.js';
+import { completeStage, criteriaCatalog, evaluateGate, getRun, grantException, listRuns } from './service.js';
 
 const RunParams = z.object({ projectId: z.uuid(), validationId: z.uuid() });
+const StageParams = z.object({ projectId: z.uuid(), sprintId: z.uuid(), stageType: StageTypeSchema });
 
 export async function flowRoutes(app: FastifyInstance): Promise<void> {
   const anyMember = [requireAuth, requireProjectRole()];
+  const facilitator = [requireAuth, requireProjectRole('FACILITATOR')];
 
   // Catálogo de compuertas y criterios con su origen oficial/adicional (FR-017).
   app.get('/criteria-catalog', { preHandler: requireAuth }, async () => criteriaCatalog());
@@ -30,5 +32,22 @@ export async function flowRoutes(app: FastifyInstance): Promise<void> {
     const parsed = RunParams.safeParse(request.params);
     if (!parsed.success) throw AppError.notFound('No se encontró la evaluación.');
     return getRun(app.db, parsed.data.projectId, parsed.data.validationId);
+  });
+
+  // Excepción manual justificada: solo el Facilitador del proyecto (FR-016).
+  app.post('/projects/:projectId/validations/:validationId/exception', { preHandler: facilitator }, async (request, reply) => {
+    const parsed = RunParams.safeParse(request.params);
+    if (!parsed.success) throw AppError.notFound('No se encontró la evaluación.');
+    const input = GateExceptionInputSchema.parse(request.body);
+    const exception = await grantException(app.db, app.clock, request.user!.id, parsed.data.projectId, parsed.data.validationId, input);
+    return reply.status(201).send(exception);
+  });
+
+  // Completar/avanzar una etapa: las etapas con compuerta bloqueante exigen su aprobación (FR-013).
+  app.post('/projects/:projectId/sprints/:sprintId/stages/:stageType/complete', { preHandler: anyMember }, async (request) => {
+    const parsed = StageParams.safeParse(request.params);
+    if (!parsed.success) throw AppError.notFound('No se encontró la etapa.');
+    const { projectId, sprintId, stageType } = parsed.data;
+    return completeStage(app.db, app.clock, request.user!.id, projectId, sprintId, stageType);
   });
 }

@@ -5,3 +5,5 @@ export * from './schemas/auth.js';
 export * from './schemas/project.js';
 export * from './schemas/backlog.js';
 export * from './schemas/validation.js';
+export * from './schemas/sprint.js';
+export * from './schemas/exception.js';

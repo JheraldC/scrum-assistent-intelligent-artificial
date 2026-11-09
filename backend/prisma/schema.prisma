@@ -99,13 +99,14 @@ model User {
   pseudonym    String   @unique
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  sessions         Session[]
-  memberships      ProjectMember[]
-  projectsCreated  Project[]
-  evidence         Evidence[]
-  activity         ActivityLog[]
-  backlogCreated   BacklogItem[]
-  validationsAsked ValidationRun[]
+  sessions          Session[]
+  memberships       ProjectMember[]
+  projectsCreated   Project[]
+  evidence          Evidence[]
+  activity          ActivityLog[]
+  backlogCreated    BacklogItem[]
+  validationsAsked  ValidationRun[]
+  exceptionsGranted GateException[]
 
   @@map("user")
 }
@@ -174,6 +175,7 @@ model Sprint {
 
   project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   stages  SprintStage[]
+  items   SprintItem[]
 
   @@unique([projectId, number])
   @@map("sprint")
@@ -243,8 +245,9 @@ model BacklogItem {
   createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  creator User    @relation(fields: [createdBy], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator     User         @relation(fields: [createdBy], references: [id])
+  sprintItems SprintItem[]
 
   @@unique([projectId, code])
   @@index([projectId, priority])
@@ -270,6 +273,7 @@ model ValidationRun {
   project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   requester User              @relation(fields: [requestedBy], references: [id])
   results   CriterionResult[]
+  exception GateException?
 
   @@unique([projectId, gateId, targetType, targetId, attemptNo])
   @@index([projectId, targetType, targetId, attemptNo(sort: Desc)])
@@ -292,4 +296,29 @@ model CriterionResult {
 
   @@unique([validationRunId, criterionId])
   @@map("criterion_result")
+}
+
+model SprintItem {
+  sprintId      String   @map("sprint_id") @db.Uuid
+  backlogItemId String   @map("backlog_item_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sprint      Sprint      @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  backlogItem BacklogItem @relation(fields: [backlogItemId], references: [id])
+
+  @@id([sprintId, backlogItemId])
+  @@map("sprint_item")
+}
+
+model GateException {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  validationRunId String   @unique @map("validation_run_id") @db.Uuid
+  authorizedBy    String   @map("authorized_by") @db.Uuid
+  justification   String
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run        ValidationRun @relation(fields: [validationRunId], references: [id], onDelete: Cascade)
+  authorizer User          @relation(fields: [authorizedBy], references: [id])
+
+  @@map("gate_exception")
 }

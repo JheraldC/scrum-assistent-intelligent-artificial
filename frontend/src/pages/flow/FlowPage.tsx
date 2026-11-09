@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { Sprint } from '../../api/types';
@@ -34,7 +35,9 @@ export function FlowPage() {
           title={es.flow.noSprint}
           description={es.flow.noSprintHelp}
           action={
-            project.myRole === 'FACILITATOR' ? <Button onClick={() => void createSprint()}>{es.flow.createSprint}</Button> : undefined
+            project.myRole === 'FACILITATOR' ? (
+              <Button onClick={() => void createSprint()}>{es.flow.createSprint}</Button>
+            ) : undefined
           }
         />
       </section>
@@ -50,13 +53,22 @@ export function FlowPage() {
       <StageStepper
         stages={sprint.stages}
         renderStage={(stage) => (
-          <EvidenceBox
-            projectId={project.id}
-            sprintId={sprint.id}
-            stageType={stage.type}
-            closed={sprint.status === 'CLOSED'}
-            onChanged={reload}
-          />
+          <>
+            {stage.type === 'PLANNING' ? (
+              <p className="mb-3">
+                <Link className="underline" to={`/proyectos/${project.id}/sprint/planificacion`}>
+                  {es.planning.title}
+                </Link>
+              </p>
+            ) : null}
+            <EvidenceBox
+              projectId={project.id}
+              sprintId={sprint.id}
+              stageType={stage.type}
+              closed={sprint.status === 'CLOSED'}
+              onChanged={reload}
+            />
+          </>
         )}
       />
     </section>

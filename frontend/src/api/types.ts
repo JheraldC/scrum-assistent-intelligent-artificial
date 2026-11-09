@@ -26,6 +26,7 @@ export interface Stage {
   status: StageStatus;
   startedAt: string | null;
   completedAt: string | null;
+  gateState: GateState | null;
 }
 
 export interface Sprint {
@@ -105,6 +106,7 @@ export interface ValidationRun {
   aiStatus: string;
   results: CriterionResult[];
   aiObservations: unknown[];
+  exception: { id: string; authorizedByPseudonym: string; justification: string; createdAt: string } | null;
   startedAt: string;
   finishedAt: string;
 }

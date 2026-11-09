@@ -46,8 +46,8 @@ async function gateStates(db: Tx, projectId: string, items: ItemRow[]): Promise<
   return new Map(
     items.map((item) => {
       const run = runs.get(item.id);
-      // Las excepciones de compuerta se incorporan con la historia US3 (GATE-PLAN).
-      const latest = run ? { status: run.status, targetVersion: run.targetVersion, hasException: false } : null;
+      // GATE-STORY no es bloqueante y no admite excepciones, pero se respeta si existiera una.
+      const latest = run ? { status: run.status, targetVersion: run.targetVersion, hasException: run.hasException } : null;
       return [item.id, deriveGateState(latest, item.version)] as const;
     }),
   );

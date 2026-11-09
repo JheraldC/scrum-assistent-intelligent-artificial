@@ -12,6 +12,7 @@ import { HistoryPage } from '../pages/history/HistoryPage';
 import { MembersPage } from '../pages/projects/MembersPage';
 import { ProjectFormPage } from '../pages/projects/ProjectFormPage';
 import { ProjectLayout } from '../pages/projects/ProjectLayout';
+import { PlanningPage } from '../pages/sprint/PlanningPage';
 import { ProjectsPage } from '../pages/projects/ProjectsPage';
 import { ValidationsPage } from '../pages/validations/ValidationsPage';
 
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
               { path: 'backlog', element: <BacklogPage /> },
               { path: 'backlog/nuevo', element: <BacklogItemPage /> },
               { path: 'backlog/:itemId', element: <BacklogItemPage /> },
+              { path: 'sprint/planificacion', element: <PlanningPage /> },
               { path: 'validaciones', element: <ValidationsPage /> },
               { path: 'participantes', element: <MembersPage /> },
               { path: 'historial', element: <HistoryPage /> },

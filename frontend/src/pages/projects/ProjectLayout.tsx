@@ -51,6 +51,9 @@ export function ProjectLayout() {
         <NavLink to={`/proyectos/${data.id}/backlog`} className={linkClass}>
           {es.nav.backlog}
         </NavLink>
+        <NavLink to={`/proyectos/${data.id}/sprint/planificacion`} className={linkClass}>
+          {es.nav.planning}
+        </NavLink>
         <NavLink to={`/proyectos/${data.id}/validaciones`} className={linkClass}>
           {es.nav.validations}
         </NavLink>

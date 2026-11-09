@@ -1,10 +1,12 @@
-import type { EvaluateRequest, GateId, TargetType } from '@scrum/shared';
+import type { EvaluateRequest, GateExceptionInput, GateId, StageType, TargetType } from '@scrum/shared';
 import { AppError } from '../../platform/errors.js';
 import { withTransaction, type Db, type Tx } from '../../platform/db.js';
 import type { Clock } from '../../platform/clock.js';
+import { latestRuns } from '../../platform/runs.js';
 import { ActivityRecorder } from '../activity/index.js';
 import { getItemSnapshot } from '../backlog/index.js';
-import { CATALOG_VERSION, evaluate, getGate, GATES, type EngineRun } from '../validation/index.js';
+import { applyStageEvent, assertTrackingAllowed, getPlanSnapshot, STAGE_GATES } from '../sprints/index.js';
+import { CATALOG_VERSION, deriveGateState, evaluate, getGate, GATES, type EngineRun } from '../validation/index.js';
 
 interface RunRow {
   id: string;
@@ -27,6 +29,21 @@ interface RunRow {
     explanation: string;
     recommendation: string;
   }[];
+  exception: { id: string; justification: string; createdAt: Date; authorizer: { pseudonym: string } } | null;
+}
+
+const runInclude = {
+  results: true,
+  exception: { include: { authorizer: { select: { pseudonym: true } } } },
+} as const;
+
+export function toExceptionDto(e: NonNullable<RunRow['exception']>) {
+  return {
+    id: e.id,
+    authorizedByPseudonym: e.authorizer.pseudonym,
+    justification: e.justification,
+    createdAt: e.createdAt.toISOString(),
+  };
 }
 
 export function toRunDto(run: RunRow) {
@@ -52,7 +69,7 @@ export function toRunDto(run: RunRow) {
     })),
     // Las observaciones de IA se añaden con la historia US4; nunca influyen en el estado.
     aiObservations: [] as unknown[],
-    exception: null,
+    exception: run.exception ? toExceptionDto(run.exception) : null,
     startedAt: run.startedAt.toISOString(),
     finishedAt: run.finishedAt.toISOString(),
   };
@@ -80,16 +97,28 @@ export function criteriaCatalog() {
 interface LoadedTarget {
   version: number;
   snapshot: unknown;
+  /** Un Sprint cerrado ya no se evalúa. */
+  closed?: boolean;
 }
 
 /** Carga (y bloquea) el objetivo de cada tipo; devuelve null si no existe en el proyecto. */
 const LOADERS: Partial<Record<TargetType, (tx: Tx, projectId: string, targetId: string) => Promise<LoadedTarget | null>>> = {
   BACKLOG_ITEM: (tx, projectId, targetId) => getItemSnapshot(tx, projectId, targetId),
+  SPRINT: async (tx, projectId, targetId) => {
+    const plan = await getPlanSnapshot(tx, projectId, targetId);
+    return plan ? { version: plan.version, snapshot: plan.snapshot, closed: plan.status === 'CLOSED' } : null;
+  },
 };
+
+/** Etapa cuyo estado depende del resultado de una compuerta. */
+function stageForGate(gateId: GateId): StageType | undefined {
+  return (Object.entries(STAGE_GATES) as [StageType, { gateId: GateId }][]).find(([, g]) => g.gateId === gateId)?.[0];
+}
 
 /**
  * Evalúa una compuerta (FR-012, FR-014, FR-015). En una transacción: bloquea el artefacto,
- * calcula el resultado con el motor puro (sin IA), asigna el intento y guarda resultados.
+ * calcula el resultado con el motor puro (sin IA), asigna el intento, guarda resultados y
+ * actualiza el estado de la etapa asociada.
  */
 export async function evaluateGate(db: Db, clock: Clock, actorId: string, projectId: string, request: EvaluateRequest) {
   const gate = getGate(request.gateId);
@@ -103,6 +132,7 @@ export async function evaluateGate(db: Db, clock: Clock, actorId: string, projec
   return withTransaction(db, async (tx) => {
     const target = await loader(tx, projectId, request.targetId);
     if (!target) throw AppError.notFound('No se encontró el elemento que se quiere evaluar.');
+    if (target.closed) throw AppError.conflict('El Sprint está cerrado: ya no se puede evaluar.');
 
     const startedAt = clock.now();
     const run: EngineRun = evaluate(gate.gateId as GateId, target.snapshot as never);
@@ -129,8 +159,18 @@ export async function evaluateGate(db: Db, clock: Clock, actorId: string, projec
         finishedAt,
         results: { create: run.results },
       },
-      include: { results: true },
+      include: runInclude,
     });
+
+    // El resultado de la compuerta mueve la etapa asociada (planificación → requiere corrección o sigue).
+    const stageType = stageForGate(gate.gateId as GateId);
+    if (stageType) {
+      const stage = await tx.sprintStage.findUniqueOrThrow({ where: { sprintId_type: { sprintId: request.targetId, type: stageType } } });
+      if (run.status === 'PASSED') await applyStageEvent(tx, clock, request.targetId, stageType, 'gate_passed');
+      else if (stage.status === 'VALIDATED') await applyStageEvent(tx, clock, request.targetId, stageType, 'edit');
+      else await applyStageEvent(tx, clock, request.targetId, stageType, 'gate_failed');
+    }
+
     await ActivityRecorder.record(tx, {
       projectId,
       actorId,
@@ -148,14 +188,142 @@ export async function listRuns(db: Db, projectId: string, filter: { targetType?:
   const runs = await db.validationRun.findMany({
     where: { projectId, ...filter },
     orderBy: [{ finishedAt: 'desc' }, { attemptNo: 'desc' }],
-    include: { results: true },
+    include: runInclude,
     take: 200,
   });
   return runs.map(toRunDto);
 }
 
 export async function getRun(db: Db, projectId: string, runId: string) {
-  const run = await db.validationRun.findFirst({ where: { id: runId, projectId }, include: { results: true } });
+  const run = await db.validationRun.findFirst({ where: { id: runId, projectId }, include: runInclude });
   if (!run) throw AppError.notFound('No se encontró la evaluación.');
   return toRunDto(run);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Excepciones manuales (FR-016)
+// ---------------------------------------------------------------------------------------------
+
+async function currentVersion(tx: Tx, targetType: TargetType, targetId: string): Promise<number | null> {
+  if (targetType === 'SPRINT') return (await tx.sprint.findUnique({ where: { id: targetId } }))?.version ?? null;
+  return null;
+}
+
+/**
+ * Concede una excepción justificada sobre la evaluación vigente FAILED de una compuerta bloqueante.
+ * Solo la concede un Facilitador (la ruta lo exige); queda registrada con autor, fecha y motivo.
+ */
+export async function grantException(
+  db: Db,
+  clock: Clock,
+  actorId: string,
+  projectId: string,
+  runId: string,
+  input: GateExceptionInput,
+) {
+  return withTransaction(db, async (tx) => {
+    const run = await tx.validationRun.findFirst({ where: { id: runId, projectId }, include: { exception: true } });
+    if (!run) throw AppError.notFound('No se encontró la evaluación.');
+    const gate = getGate(run.gateId as GateId);
+    if (!gate?.blocking) throw AppError.conflict('Esta compuerta no bloquea el avance, así que no necesita una excepción.');
+    if (run.status !== 'FAILED') throw AppError.conflict('Solo se puede conceder una excepción sobre una evaluación no aprobada.');
+    if (run.exception) throw AppError.conflict('Esta evaluación ya tiene una excepción registrada.');
+
+    // Debe ser la evaluación vigente: el último intento y sobre la versión actual del objetivo.
+    const latest = (await latestRuns(tx, projectId, run.targetType, [run.targetId])).get(run.targetId);
+    const version = await currentVersion(tx, run.targetType, run.targetId);
+    if (!latest || latest.id !== run.id || version !== run.targetVersion) {
+      throw AppError.conflict('La evaluación está desactualizada: evalúe de nuevo antes de pedir una excepción.');
+    }
+
+    const now = clock.now();
+    const created = await tx.gateException.create({
+      data: { validationRunId: run.id, authorizedBy: actorId, justification: input.justification, createdAt: now },
+      include: { authorizer: { select: { pseudonym: true } } },
+    });
+    const stageType = stageForGate(gate.gateId);
+    if (stageType) await applyStageEvent(tx, clock, run.targetId, stageType, 'gate_passed');
+    await ActivityRecorder.record(tx, {
+      projectId,
+      actorId,
+      action: 'gate.exception_granted',
+      entityType: 'validation_run',
+      entityId: run.id,
+      payload: { gate: gate.gateId, attempt: run.attemptNo },
+      occurredAt: now,
+    });
+    return toExceptionDto(created);
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Avance de etapas (FR-013)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Completa una etapa. Las etapas con compuerta bloqueante exigen una evaluación vigente aprobada
+ * o con excepción; el seguimiento exige la planificación validada (controles del prototipo).
+ */
+export async function completeStage(
+  db: Db,
+  clock: Clock,
+  actorId: string,
+  projectId: string,
+  sprintId: string,
+  stageType: StageType,
+) {
+  return withTransaction(db, async (tx) => {
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "sprint" WHERE id = ${sprintId}::uuid AND project_id = ${projectId}::uuid FOR UPDATE`;
+    if (locked.length === 0) throw AppError.notFound('No se encontró el Sprint.');
+    const sprint = await tx.sprint.findUniqueOrThrow({ where: { id: sprintId } });
+    if (sprint.status === 'CLOSED') throw AppError.conflict('El Sprint está cerrado.');
+    const stage = await tx.sprintStage.findUniqueOrThrow({ where: { sprintId_type: { sprintId, type: stageType } } });
+
+    if (stageType === 'TRACKING') await assertTrackingAllowed(tx, sprintId);
+    if (stage.status === 'VALIDATED') throw AppError.conflict('La etapa ya está validada.');
+
+    if (stageType === 'RETROSPECTIVE') {
+      // La compuerta de la retrospectiva se incorpora con la historia US5.
+      throw new AppError('GATE_NOT_PASSED', 409, 'La retrospectiva aún no tiene una evaluación aprobada.');
+    }
+
+    const gate = STAGE_GATES[stageType];
+    if (gate) {
+      const run = (await latestRuns(tx, projectId, gate.targetType, [sprintId])).get(sprintId);
+      const state = deriveGateState(
+        run ? { status: run.status, targetVersion: run.targetVersion, hasException: run.hasException } : null,
+        sprint.version,
+      );
+      if (state !== 'APROBADA' && state !== 'APROBADA_CON_EXCEPCION') {
+        throw new AppError(
+          'GATE_NOT_PASSED',
+          409,
+          state === 'DESACTUALIZADA'
+            ? 'La planificación cambió después de la última evaluación. Evalúela de nuevo antes de avanzar.'
+            : 'La planificación aún no cumple los criterios obligatorios. Corrija y evalúe de nuevo, o pida una excepción al Facilitador.',
+        );
+      }
+    }
+
+    if (stage.status === 'PENDING') await applyStageEvent(tx, clock, sprintId, stageType, 'start');
+    const completed = await applyStageEvent(tx, clock, sprintId, stageType, 'complete');
+    if (!completed) throw new AppError('STAGE_ORDER', 409, 'La etapa no se puede completar en su estado actual.');
+
+    await ActivityRecorder.record(tx, {
+      projectId,
+      actorId,
+      action: 'stage.completed',
+      entityType: 'sprint_stage',
+      entityId: completed.id,
+      payload: { stage: stageType },
+      occurredAt: clock.now(),
+    });
+    return {
+      type: completed.type,
+      status: completed.status,
+      startedAt: completed.startedAt?.toISOString() ?? null,
+      completedAt: completed.completedAt?.toISOString() ?? null,
+    };
+  });
 }

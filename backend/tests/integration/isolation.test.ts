@@ -43,6 +43,11 @@ const routes: RouteCase[] = [
   { method: 'get', path: (c) => `/projects/${c.projectId}/validations` },
   { method: 'post', path: (c) => `/projects/${c.projectId}/validations`, body: (c) => ({ gateId: 'GATE-STORY', targetType: 'BACKLOG_ITEM', targetId: c.otherUserId }) },
   { method: 'get', path: (c) => `/projects/${c.projectId}/validations/${c.otherUserId}` },
+  // US3: planificación, avance de etapas y excepciones
+  { method: 'patch', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}`, body: () => ({ sprintGoal: 'x', expectedVersion: 1 }) },
+  { method: 'put', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/items`, body: () => ({ itemIds: [], expectedVersion: 1 }) },
+  { method: 'post', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/stages/PLANNING/complete` },
+  { method: 'post', path: (c) => `/projects/${c.projectId}/validations/${c.otherUserId}/exception`, body: () => ({ justification: 'una justificación válida' }), facilitatorOnly: true },
 ];
 
 describe('aislamiento entre proyectos (T028)', () => {

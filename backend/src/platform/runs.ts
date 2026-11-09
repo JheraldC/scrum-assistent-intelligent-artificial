@@ -2,10 +2,12 @@ import type { TargetType } from '@scrum/shared';
 import type { Tx } from './db.js';
 
 export interface LatestRunRow {
+  id: string;
   targetId: string;
   status: 'PASSED' | 'FAILED' | 'ERROR';
   targetVersion: number;
   attemptNo: number;
+  hasException: boolean;
 }
 
 /**
@@ -23,8 +25,26 @@ export async function latestRuns(
   const rows = await db.validationRun.findMany({
     where: { projectId, targetType, targetId: { in: targetIds } },
     orderBy: { attemptNo: 'desc' },
-    select: { targetId: true, status: true, targetVersion: true, attemptNo: true },
+    select: {
+      id: true,
+      targetId: true,
+      status: true,
+      targetVersion: true,
+      attemptNo: true,
+      exception: { select: { id: true } },
+    },
   });
-  for (const row of rows) if (!latest.has(row.targetId)) latest.set(row.targetId, row);
+  for (const row of rows) {
+    if (!latest.has(row.targetId)) {
+      latest.set(row.targetId, {
+        id: row.id,
+        targetId: row.targetId,
+        status: row.status,
+        targetVersion: row.targetVersion,
+        attemptNo: row.attemptNo,
+        hasException: row.exception !== null,
+      });
+    }
+  }
   return latest;
 }
