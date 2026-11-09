@@ -1,2 +1,2 @@
-export { flowRoutes } from './routes.js';
-export { evaluateGate } from './service.js';
+export { flowRoutes, type FlowOptions } from './routes.js';
+export { evaluateGate, getRun } from './service.js';

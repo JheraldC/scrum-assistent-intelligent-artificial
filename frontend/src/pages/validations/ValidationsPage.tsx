@@ -10,8 +10,9 @@ import { GateResultPanel, RunStatusBadge } from '../../components/validation/Gat
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
 
-function RunItem({ run, label, titles }: { run: ValidationRun; label: string; titles: Record<string, string> }) {
+function RunItem({ run: initial, label, titles, projectId }: { run: ValidationRun; label: string; titles: Record<string, string>; projectId: string }) {
   const [open, setOpen] = useState(false);
+  const [run, setRun] = useState(initial);
   return (
     <li className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
       <details onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
@@ -24,7 +25,7 @@ function RunItem({ run, label, titles }: { run: ValidationRun; label: string; ti
             {label} · <time dateTime={run.finishedAt}>{new Date(run.finishedAt).toLocaleString('es')}</time>
           </span>
         </summary>
-        {open ? <GateResultPanel run={run} titles={titles} /> : null}
+        {open ? <GateResultPanel run={run} titles={titles} projectId={projectId} onRunUpdated={setRun} /> : null}
       </details>
     </li>
   );
@@ -49,7 +50,7 @@ export function ValidationsPage() {
           {[...runs.data]
             .sort((a, b) => a.targetId.localeCompare(b.targetId) || a.attemptNo - b.attemptNo)
             .map((run) => (
-              <RunItem key={run.id} run={run} label={codes.get(run.targetId) ?? run.targetType} titles={titles} />
+              <RunItem key={run.id} run={run} label={codes.get(run.targetId) ?? run.targetType} titles={titles} projectId={project.id} />
             ))}
         </ol>
       ) : null}

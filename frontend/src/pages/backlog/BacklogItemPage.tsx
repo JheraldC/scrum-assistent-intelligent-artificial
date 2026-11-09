@@ -4,6 +4,7 @@ import { api, ApiError } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { BacklogItem, ValidationRun } from '../../api/types';
 import { useCatalogTitles } from '../../api/useCatalogTitles';
+import { useAssistantFocus } from '../../components/agent/AssistantContext';
 import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { FormField } from '../../components/ui/FormField';
@@ -76,6 +77,8 @@ export function BacklogItemPage() {
   const [saved, setSaved] = useState(false);
   const [run, setRun] = useState<ValidationRun | null>(null);
   const [evaluating, setEvaluating] = useState(false);
+
+  useAssistantFocus(item ? { targetType: 'BACKLOG_ITEM', targetId: item.id, label: `${item.code} · ${item.title}` } : null);
 
   function load(next: BacklogItem) {
     setItem(next);
@@ -224,7 +227,7 @@ export function BacklogItemPage() {
         {!creating && dirty ? <p className="mt-2 text-sm text-[var(--color-muted)]">Guarde los cambios antes de evaluar.</p> : null}
       </form>
 
-      {run ? <GateResultPanel run={run} titles={titles} /> : null}
+      {run ? <GateResultPanel run={run} titles={titles} projectId={project.id} onRunUpdated={setRun} /> : null}
       {saved ? <Toast message={es.backlog.saved} onClose={() => setSaved(false)} /> : null}
     </section>
   );

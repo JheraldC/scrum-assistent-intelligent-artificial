@@ -105,7 +105,7 @@ export interface ValidationRun {
   catalogVersion: string;
   aiStatus: string;
   results: CriterionResult[];
-  aiObservations: unknown[];
+  aiObservations: AiObservation[];
   exception: { id: string; authorizedByPseudonym: string; justification: string; createdAt: string } | null;
   startedAt: string;
   finishedAt: string;
@@ -119,4 +119,21 @@ export interface CriteriaCatalog {
     blocking: boolean;
     criteria: { id: string; title: string; origin: 'OFFICIAL' | 'ADDITIONAL'; mandatory: boolean; scrumGuideNote: string | null }[];
   }[];
+}
+
+export interface AiObservation {
+  criterionId: string | null;
+  text: string;
+  suggestedRewrite: string | null;
+  source: 'AI_RECOMMENDATION';
+}
+
+export interface AgentReply {
+  interactionId: string;
+  answer: string;
+  suggestions: { target: string; text: string }[];
+  referencedCriteria: string[];
+  disclaimer: string;
+  source: 'AI_RECOMMENDATION';
+  model: string;
 }

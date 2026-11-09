@@ -1,4 +1,7 @@
+import { useState } from 'react';
+import { api } from '../../api/client';
 import type { CriterionResult, ValidationRun } from '../../api/types';
+import { Button } from '../ui/Button';
 import { es } from '../../i18n/es';
 import { SourceBadge } from './SourceBadge';
 
@@ -71,10 +74,76 @@ interface Props {
   run: ValidationRun;
   /** Títulos de criterio por identificador (del catálogo). */
   titles: Record<string, string>;
+  /** Con estos dos datos se muestra el botón «Pedir recomendación de IA» (bajo demanda). */
+  projectId?: string;
+  onRunUpdated?: (run: ValidationRun) => void;
+}
+
+/** Observaciones de IA de una evaluación: siempre etiquetadas y separadas de las reglas (FR-022). */
+function AiSection({ run, projectId, onRunUpdated }: Pick<Props, 'run' | 'projectId' | 'onRunUpdated'>) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const failedNotice = es.ai.statusNotice[run.aiStatus];
+
+  async function request() {
+    if (!projectId || !onRunUpdated) return;
+    setBusy(true);
+    setError(null);
+    try {
+      onRunUpdated(await api<ValidationRun>(`/projects/${projectId}/validations/${run.id}/ai-feedback`, { method: 'POST' }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : es.assistant.unavailable);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section aria-label={es.ai.recommendations} className="mt-4 rounded-md border border-[var(--color-ai)] bg-[var(--color-ai-bg)] p-3 text-[var(--color-ai)]">
+      <h4 className="flex flex-wrap items-center gap-2 font-semibold">
+        {es.ai.recommendations} <SourceBadge source="AI_RECOMMENDATION" />
+      </h4>
+      <p className="text-xs">{es.assistant.notGuaranteed}</p>
+      {run.aiObservations.length > 0 ? (
+        <ul className="mt-2 space-y-2 text-sm">
+          {run.aiObservations.map((o, i) => (
+            <li key={i}>
+              {o.criterionId ? <span className="mr-2 font-mono text-xs">{o.criterionId}</span> : null}
+              {o.text}
+              {o.suggestedRewrite ? (
+                <p className="mt-1 rounded bg-[var(--color-surface)] p-2 text-[var(--color-text)]">
+                  <strong>{es.ai.suggestedRewrite}:</strong> {o.suggestedRewrite}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : run.aiStatus === 'OK' ? (
+        <p className="mt-2 text-sm">{es.ai.none}</p>
+      ) : null}
+      {failedNotice ? (
+        <p role="status" className="mt-2 text-sm font-medium">
+          <span aria-hidden="true">⚠ </span>
+          {failedNotice} {es.ai.rulesStillValid}
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="mt-2 text-sm font-medium">
+          <span aria-hidden="true">⚠ </span>
+          {error}
+        </p>
+      ) : null}
+      {projectId && onRunUpdated ? (
+        <Button variant="secondary" className="mt-2" disabled={busy} onClick={() => void request()}>
+          {busy ? es.ai.requesting : es.ai.request}
+        </Button>
+      ) : null}
+    </section>
+  );
 }
 
 /** Resultado de una evaluación: cada criterio con su estado, origen, evidencia y recomendación. */
-export function GateResultPanel({ run, titles }: Props) {
+export function GateResultPanel({ run, titles, projectId, onRunUpdated }: Props) {
   const met = run.results.filter((r) => r.outcome === 'MET').length;
   const notMet = run.results.filter((r) => r.outcome === 'NOT_MET').length;
   return (
@@ -90,6 +159,7 @@ export function GateResultPanel({ run, titles }: Props) {
           <CriterionRow key={result.criterionId} result={result} title={titles[result.criterionId] ?? result.criterionId} />
         ))}
       </ul>
+      <AiSection run={run} projectId={projectId} onRunUpdated={onRunUpdated} />
     </section>
   );
 }

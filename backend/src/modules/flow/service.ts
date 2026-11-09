@@ -46,7 +46,42 @@ export function toExceptionDto(e: NonNullable<RunRow['exception']>) {
   };
 }
 
-export function toRunDto(run: RunRow) {
+type AiStatusValue = 'OK' | 'NOT_REQUESTED' | 'TIMEOUT' | 'PROVIDER_ERROR' | 'INVALID_RESPONSE' | 'BUDGET_EXCEEDED';
+
+interface AiInfo {
+  aiStatus: AiStatusValue;
+  aiObservations: { criterionId: string | null; text: string; suggestedRewrite: string | null; source: 'AI_RECOMMENDATION' }[];
+}
+
+/**
+ * Estado y observaciones de IA de cada evaluación, derivados de la interacción de
+ * retroalimentación más reciente (la evaluación en sí es de solo inserción). Nunca influyen
+ * en el estado de la compuerta.
+ */
+async function aiInfoByRun(db: Tx, runIds: string[]): Promise<Map<string, AiInfo>> {
+  const info = new Map<string, AiInfo>();
+  if (runIds.length === 0) return info;
+  const rows = await db.agentInteraction.findMany({
+    where: { validationRunId: { in: runIds }, kind: 'VALIDATION_FEEDBACK' },
+    orderBy: { createdAt: 'desc' },
+  });
+  for (const row of rows) {
+    if (!row.validationRunId || info.has(row.validationRunId)) continue;
+    const response = row.response as { observations?: { criterionId?: string | null; text: string; suggestedRewrite?: string | null }[] } | null;
+    info.set(row.validationRunId, {
+      aiStatus: row.status === 'RATE_LIMITED' ? 'BUDGET_EXCEEDED' : row.status,
+      aiObservations: (response?.observations ?? []).map((o) => ({
+        criterionId: o.criterionId ?? null,
+        text: o.text,
+        suggestedRewrite: o.suggestedRewrite ?? null,
+        source: 'AI_RECOMMENDATION' as const,
+      })),
+    });
+  }
+  return info;
+}
+
+export function toRunDto(run: RunRow, ai?: AiInfo) {
   return {
     id: run.id,
     gateId: run.gateId,
@@ -56,7 +91,7 @@ export function toRunDto(run: RunRow) {
     attemptNo: run.attemptNo,
     status: run.status,
     catalogVersion: run.catalogVersion,
-    aiStatus: run.aiStatus,
+    aiStatus: ai?.aiStatus ?? run.aiStatus,
     results: run.results.map((r) => ({
       criterionId: r.criterionId,
       origin: r.origin,
@@ -67,8 +102,7 @@ export function toRunDto(run: RunRow) {
       recommendation: r.recommendation,
       source: 'RULE_CHECK' as const, // «Comprobación por reglas» (FR-022)
     })),
-    // Las observaciones de IA se añaden con la historia US4; nunca influyen en el estado.
-    aiObservations: [] as unknown[],
+    aiObservations: ai?.aiObservations ?? [],
     exception: run.exception ? toExceptionDto(run.exception) : null,
     startedAt: run.startedAt.toISOString(),
     finishedAt: run.finishedAt.toISOString(),
@@ -191,13 +225,14 @@ export async function listRuns(db: Db, projectId: string, filter: { targetType?:
     include: runInclude,
     take: 200,
   });
-  return runs.map(toRunDto);
+  const ai = await aiInfoByRun(db, runs.map((r) => r.id));
+  return runs.map((r) => toRunDto(r, ai.get(r.id)));
 }
 
 export async function getRun(db: Db, projectId: string, runId: string) {
   const run = await db.validationRun.findFirst({ where: { id: runId, projectId }, include: runInclude });
   if (!run) throw AppError.notFound('No se encontró la evaluación.');
-  return toRunDto(run);
+  return toRunDto(run, (await aiInfoByRun(db, [run.id])).get(run.id));
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -9,7 +9,15 @@ import { completeStage, criteriaCatalog, evaluateGate, getRun, grantException, l
 const RunParams = z.object({ projectId: z.uuid(), validationId: z.uuid() });
 const StageParams = z.object({ projectId: z.uuid(), sprintId: z.uuid(), stageType: StageTypeSchema });
 
-export async function flowRoutes(app: FastifyInstance): Promise<void> {
+export interface FlowOptions {
+  /**
+   * Gancho opcional (lo conecta la capa HTTP al agente): pide retroalimentación de IA para una
+   * evaluación recién creada. Si falla, la evaluación por reglas no se ve afectada.
+   */
+  requestFeedback?: (ctx: { userId: string; projectId: string; runId: string }) => Promise<unknown>;
+}
+
+export async function flowRoutes(app: FastifyInstance, options: FlowOptions = {}): Promise<void> {
   const anyMember = [requireAuth, requireProjectRole()];
   const facilitator = [requireAuth, requireProjectRole('FACILITATOR')];
 
@@ -19,7 +27,13 @@ export async function flowRoutes(app: FastifyInstance): Promise<void> {
   app.post('/projects/:projectId/validations', { preHandler: anyMember }, async (request, reply) => {
     const { projectId } = request.params as { projectId: string };
     const input = EvaluateRequestSchema.parse(request.body);
-    return reply.status(201).send(await evaluateGate(app.db, app.clock, request.user!.id, projectId, input));
+    const run = await evaluateGate(app.db, app.clock, request.user!.id, projectId, input);
+    if (input.requestAiFeedback && options.requestFeedback) {
+      // La compuerta ya está decidida y guardada; la IA solo añade observaciones (si puede).
+      await options.requestFeedback({ userId: request.user!.id, projectId, runId: run.id }).catch(() => undefined);
+      return reply.status(201).send(await getRun(app.db, projectId, run.id));
+    }
+    return reply.status(201).send(run);
   });
 
   app.get('/projects/:projectId/validations', { preHandler: anyMember }, async (request) => {

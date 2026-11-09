@@ -74,6 +74,24 @@ enum Outcome {
   @@map("outcome")
 }
 
+enum AgentKind {
+  CHAT
+  VALIDATION_FEEDBACK
+
+  @@map("agent_kind")
+}
+
+enum AgentStatus {
+  OK
+  TIMEOUT
+  PROVIDER_ERROR
+  INVALID_RESPONSE
+  BUDGET_EXCEEDED
+  RATE_LIMITED
+
+  @@map("agent_status")
+}
+
 enum StageType {
   PLANNING
   TRACKING
@@ -107,6 +125,7 @@ model User {
   backlogCreated    BacklogItem[]
   validationsAsked  ValidationRun[]
   exceptionsGranted GateException[]
+  agentInteractions AgentInteraction[]
 
   @@map("user")
 }
@@ -137,12 +156,13 @@ model Project {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  creator     User            @relation(fields: [createdBy], references: [id])
-  members     ProjectMember[]
-  sprints     Sprint[]
-  activity    ActivityLog[]
-  backlog     BacklogItem[]
-  validations ValidationRun[]
+  creator           User               @relation(fields: [createdBy], references: [id])
+  members           ProjectMember[]
+  sprints           Sprint[]
+  activity          ActivityLog[]
+  backlog           BacklogItem[]
+  validations       ValidationRun[]
+  agentInteractions AgentInteraction[]
 
   @@map("project")
 }
@@ -270,10 +290,11 @@ model ValidationRun {
   startedAt      DateTime   @map("started_at") @db.Timestamptz(6)
   finishedAt     DateTime   @map("finished_at") @db.Timestamptz(6)
 
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  requester User              @relation(fields: [requestedBy], references: [id])
-  results   CriterionResult[]
-  exception GateException?
+  project              Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requester            User               @relation(fields: [requestedBy], references: [id])
+  results              CriterionResult[]
+  exception            GateException?
+  feedbackInteractions AgentInteraction[]
 
   @@unique([projectId, gateId, targetType, targetId, attemptNo])
   @@index([projectId, targetType, targetId, attemptNo(sort: Desc)])
@@ -321,4 +342,32 @@ model GateException {
   authorizer User          @relation(fields: [authorizedBy], references: [id])
 
   @@map("gate_exception")
+}
+
+model AgentInteraction {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String      @map("project_id") @db.Uuid
+  userId          String      @map("user_id") @db.Uuid
+  kind            AgentKind
+  validationRunId String?     @map("validation_run_id") @db.Uuid
+  promptVersion   String      @map("prompt_version")
+  provider        String
+  model           String
+  modelConfig     Json        @map("model_config")
+  question        String
+  response        Json?
+  status          AgentStatus
+  latencyMs       Int?        @map("latency_ms")
+  inputTokens     Int?        @map("input_tokens")
+  outputTokens    Int?        @map("output_tokens")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id])
+  run     ValidationRun? @relation(fields: [validationRunId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@index([projectId, userId, createdAt])
+  @@index([createdAt])
+  @@map("agent_interaction")
 }

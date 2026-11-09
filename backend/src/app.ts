@@ -12,6 +12,7 @@ import type { Db } from './platform/db.js';
 import { systemClock, type Clock } from './platform/clock.js';
 import { errorHandler, notFoundHandler } from './platform/errors.js';
 import { loggerOptions } from './platform/logger.js';
+import { createLlmProvider, type LlmProvider } from './modules/agent/llm/index.js';
 import { registerRoutes } from './http/routes.js';
 
 declare module 'fastify' {
@@ -19,6 +20,7 @@ declare module 'fastify' {
     config: Config;
     db: Db;
     clock: Clock;
+    llm: LlmProvider;
   }
 }
 
@@ -26,6 +28,8 @@ export interface AppDeps {
   config: Config;
   db: Db;
   clock?: Clock;
+  /** Proveedor de IA (las pruebas inyectan el simulado); por defecto se crea según la configuración. */
+  llm?: LlmProvider;
   /** Directorio del frontend compilado; por defecto `frontend/dist` junto al repositorio. */
   staticDir?: string;
 }
@@ -43,6 +47,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.decorate('config', config);
   app.decorate('db', deps.db);
   app.decorate('clock', deps.clock ?? systemClock);
+  app.decorate('llm', deps.llm ?? createLlmProvider(config));
 
   await app.register(helmet, { global: true });
   await app.register(cookie, { secret: config.SESSION_SECRET });

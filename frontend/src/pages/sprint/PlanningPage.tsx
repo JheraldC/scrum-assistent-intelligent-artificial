@@ -3,6 +3,7 @@ import { api, ApiError } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { BacklogItem, Sprint, ValidationRun } from '../../api/types';
 import { useCatalogTitles } from '../../api/useCatalogTitles';
+import { useAssistantFocus } from '../../components/agent/AssistantContext';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -33,6 +34,8 @@ export function PlanningPage() {
   const [conflict, setConflict] = useState<Sprint | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [askException, setAskException] = useState(false);
+
+  useAssistantFocus(sprint ? { targetType: 'SPRINT', targetId: sprint.id, label: `Sprint ${sprint.number} · planificación` } : null);
 
   const planning = sprint?.stages.find((s) => s.type === 'PLANNING');
   const gateState = planning?.gateState ?? 'NO_EVALUADA';
@@ -247,7 +250,7 @@ export function PlanningPage() {
         />
       ) : null}
 
-      {run ? <GateResultPanel run={run} titles={titles} /> : null}
+      {run ? <GateResultPanel run={run} titles={titles} projectId={project.id} onRunUpdated={setRun} /> : null}
       {run?.exception ? (
         <p className="rounded-md border border-[var(--color-warning)] bg-[var(--color-warning-bg)] p-3 text-sm text-[var(--color-warning)]">
           <strong>Excepción:</strong> {run.exception.justification} ({run.exception.authorizedByPseudonym})
