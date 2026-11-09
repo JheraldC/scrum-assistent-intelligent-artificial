@@ -1,0 +1,173 @@
+// Esquema de datos (data-model.md). Se amplía historia por historia (tasks.md).
+// Las restricciones que Prisma no expresa (CHECK, índices únicos parciales) están en el SQL
+// de cada migración.
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  PARTICIPANT
+  FACILITATOR
+
+  @@map("role")
+}
+
+enum SprintStatus {
+  OPEN
+  CLOSED
+
+  @@map("sprint_status")
+}
+
+enum StageType {
+  PLANNING
+  TRACKING
+  REVIEW
+  RETROSPECTIVE
+
+  @@map("stage_type")
+}
+
+enum StageStatus {
+  PENDING
+  IN_PROGRESS
+  NEEDS_CORRECTION
+  VALIDATED
+
+  @@map("stage_status")
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  pseudonym    String   @unique
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sessions         Session[]
+  memberships      ProjectMember[]
+  projectsCreated  Project[]
+  evidence         Evidence[]
+  activity         ActivityLog[]
+
+  @@map("user")
+}
+
+model Session {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  tokenHash     String   @unique @map("token_hash")
+  csrfTokenHash String   @map("csrf_token_hash")
+  expiresAt     DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("session")
+}
+
+model Project {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  description String
+  productGoal String   @map("product_goal")
+  isSample    Boolean  @default(false) @map("is_sample")
+  version     Int      @default(1)
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  creator  User            @relation(fields: [createdBy], references: [id])
+  members  ProjectMember[]
+  sprints  Sprint[]
+  activity ActivityLog[]
+
+  @@map("project")
+}
+
+model ProjectMember {
+  projectId String   @map("project_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      Role
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_member")
+}
+
+model Sprint {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId  String       @map("project_id") @db.Uuid
+  number     Int
+  status     SprintStatus @default(OPEN)
+  sprintGoal String       @default("") @map("sprint_goal")
+  workPlan   String       @default("") @map("work_plan")
+  version    Int          @default(1)
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  closedAt   DateTime?    @map("closed_at") @db.Timestamptz(6)
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stages  SprintStage[]
+
+  @@unique([projectId, number])
+  @@map("sprint")
+}
+
+model SprintStage {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sprintId    String      @map("sprint_id") @db.Uuid
+  type        StageType
+  status      StageStatus @default(PENDING)
+  startedAt   DateTime?   @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime?   @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  sprint   Sprint     @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  evidence Evidence[]
+
+  @@unique([sprintId, type])
+  @@map("sprint_stage")
+}
+
+model Evidence {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stageId   String   @map("stage_id") @db.Uuid
+  content   String
+  createdBy String   @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  stage   SprintStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  creator User        @relation(fields: [createdBy], references: [id])
+
+  @@map("evidence")
+}
+
+model ActivityLog {
+  id         BigInt   @id @default(autoincrement())
+  projectId  String   @map("project_id") @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id") @db.Uuid
+  payload    Json     @default("{}")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   User?   @relation(fields: [actorId], references: [id])
+
+  @@index([projectId, occurredAt, id])
+  @@map("activity_log")
+}

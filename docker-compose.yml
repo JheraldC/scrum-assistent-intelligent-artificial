@@ -1,0 +1,24 @@
+# PostgreSQL de desarrollo y de pruebas (plan.md, "Despliegue"). Solo para uso local.
+services:
+  postgres-dev:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: scrum
+      POSTGRES_PASSWORD: scrum_dev_password
+      POSTGRES_DB: scrum_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+  postgres-test:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: scrum
+      POSTGRES_PASSWORD: scrum_test_password
+      POSTGRES_DB: scrum_test
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+volumes:
+  pgdata-dev:

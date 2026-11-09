@@ -1,0 +1,39 @@
+{
+  "name": "scrum-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agente inteligente para la guía y validación del proceso Scrum (prototipo académico)",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend",
+    "e2e"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w shared && npm run build -w frontend && npm run build -w backend",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w backend && npm run typecheck -w frontend",
+    "test:unit": "npm run test:unit -w backend",
+    "test:integration": "npm run test:integration -w backend",
+    "test:e2e": "npm run test -w e2e",
+    "db:migrate": "npm run db:migrate -w backend",
+    "db:seed": "npm run db:seed -w backend"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "concurrently": "^10.0.7",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}

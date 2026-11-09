@@ -1,0 +1,43 @@
+/* Tokens de diseño. Los estados siempre llevan icono y texto además del color (accesibilidad). */
+:root {
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-text: #0f172a;
+  --color-muted: #475569;
+  --color-border: #cbd5e1;
+  --color-primary: #1d4ed8;
+  --color-primary-contrast: #ffffff;
+  --color-focus: #f59e0b;
+  --color-success: #166534;
+  --color-success-bg: #dcfce7;
+  --color-warning: #92400e;
+  --color-warning-bg: #fef3c7;
+  --color-danger: #991b1b;
+  --color-danger-bg: #fee2e2;
+  --color-info: #1e40af;
+  --color-info-bg: #dbeafe;
+  --color-ai: #6b21a8;
+  --color-ai-bg: #f3e8ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0f172a;
+    --color-surface: #1e293b;
+    --color-text: #f1f5f9;
+    --color-muted: #cbd5e1;
+    --color-border: #475569;
+    --color-primary: #93c5fd;
+    --color-primary-contrast: #0f172a;
+    --color-success: #86efac;
+    --color-success-bg: #14532d;
+    --color-warning: #fcd34d;
+    --color-warning-bg: #78350f;
+    --color-danger: #fca5a5;
+    --color-danger-bg: #7f1d1d;
+    --color-info: #bfdbfe;
+    --color-info-bg: #1e3a8a;
+    --color-ai: #e9d5ff;
+    --color-ai-bg: #581c87;
+  }
+}

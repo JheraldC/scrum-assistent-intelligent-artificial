@@ -1,0 +1,38 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: scrum
+          POSTGRES_PASSWORD: scrum_test_password
+          POSTGRES_DB: scrum_test
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U scrum" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      TEST_DATABASE_URL: postgresql://scrum:scrum_test_password@localhost:5433/scrum_test
+      DATABASE_URL: postgresql://scrum:scrum_test_password@localhost:5433/scrum_test
+      SESSION_SECRET: ci-session-secret-ci-session-secret-1234
+      LLM_PROVIDER: fake
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
