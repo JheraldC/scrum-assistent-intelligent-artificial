@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { registerCsrfProtection } from '../platform/csrf.js';
 import { activityRoutes } from '../modules/activity/index.js';
 import { authRoutes } from '../modules/auth/index.js';
+import { backlogRoutes } from '../modules/backlog/index.js';
+import { flowRoutes } from '../modules/flow/index.js';
 import { projectsRoutes } from '../modules/projects/index.js';
 import { sprintsRoutes } from '../modules/sprints/index.js';
 
@@ -17,6 +19,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       await api.register(authRoutes);
       await api.register(projectsRoutes);
       await api.register(sprintsRoutes);
+      await api.register(backlogRoutes);
+      await api.register(flowRoutes);
       await api.register(activityRoutes);
     },
     { prefix: '/api/v1' },

@@ -24,6 +24,56 @@ enum SprintStatus {
   @@map("sprint_status")
 }
 
+enum BacklogKind {
+  USER_STORY
+  ITEM
+
+  @@map("backlog_kind")
+}
+
+enum TargetType {
+  BACKLOG_ITEM
+  SPRINT
+  SPRINT_REVIEW
+  RETROSPECTIVE
+
+  @@map("target_type")
+}
+
+enum RunStatus {
+  PASSED
+  FAILED
+  ERROR
+
+  @@map("run_status")
+}
+
+enum AiStatus {
+  OK
+  NOT_REQUESTED
+  TIMEOUT
+  PROVIDER_ERROR
+  INVALID_RESPONSE
+  BUDGET_EXCEEDED
+
+  @@map("ai_status")
+}
+
+enum Origin {
+  OFFICIAL
+  ADDITIONAL
+
+  @@map("origin")
+}
+
+enum Outcome {
+  MET
+  NOT_MET
+  NOT_APPLICABLE
+
+  @@map("outcome")
+}
+
 enum StageType {
   PLANNING
   TRACKING
@@ -54,6 +104,8 @@ model User {
   projectsCreated  Project[]
   evidence         Evidence[]
   activity         ActivityLog[]
+  backlogCreated   BacklogItem[]
+  validationsAsked ValidationRun[]
 
   @@map("user")
 }
@@ -84,10 +136,12 @@ model Project {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  creator  User            @relation(fields: [createdBy], references: [id])
-  members  ProjectMember[]
-  sprints  Sprint[]
-  activity ActivityLog[]
+  creator     User            @relation(fields: [createdBy], references: [id])
+  members     ProjectMember[]
+  sprints     Sprint[]
+  activity    ActivityLog[]
+  backlog     BacklogItem[]
+  validations ValidationRun[]
 
   @@map("project")
 }
@@ -170,4 +224,72 @@ model ActivityLog {
 
   @@index([projectId, occurredAt, id])
   @@map("activity_log")
+}
+
+model BacklogItem {
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId          String      @map("project_id") @db.Uuid
+  code               String
+  kind               BacklogKind
+  title              String
+  asA                String?     @map("as_a")
+  iWant              String?     @map("i_want")
+  soThat             String?     @map("so_that")
+  description        String?
+  acceptanceCriteria String[]    @default([]) @map("acceptance_criteria")
+  priority           Int
+  version            Int         @default(1)
+  createdBy          String      @map("created_by") @db.Uuid
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator User    @relation(fields: [createdBy], references: [id])
+
+  @@unique([projectId, code])
+  @@index([projectId, priority])
+  @@map("backlog_item")
+}
+
+model ValidationRun {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId      String     @map("project_id") @db.Uuid
+  gateId         String     @map("gate_id")
+  targetType     TargetType @map("target_type")
+  targetId       String     @map("target_id") @db.Uuid
+  targetVersion  Int        @map("target_version")
+  targetSnapshot Json       @map("target_snapshot")
+  attemptNo      Int        @map("attempt_no")
+  status         RunStatus
+  catalogVersion String     @map("catalog_version")
+  aiStatus       AiStatus   @map("ai_status")
+  requestedBy    String     @map("requested_by") @db.Uuid
+  startedAt      DateTime   @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime   @map("finished_at") @db.Timestamptz(6)
+
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requester User              @relation(fields: [requestedBy], references: [id])
+  results   CriterionResult[]
+
+  @@unique([projectId, gateId, targetType, targetId, attemptNo])
+  @@index([projectId, targetType, targetId, attemptNo(sort: Desc)])
+  @@index([projectId, finishedAt])
+  @@map("validation_run")
+}
+
+model CriterionResult {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  validationRunId String  @map("validation_run_id") @db.Uuid
+  criterionId     String  @map("criterion_id")
+  origin          Origin
+  mandatory       Boolean
+  outcome         Outcome
+  evidence        String  @default("")
+  explanation     String  @default("")
+  recommendation  String  @default("")
+
+  run ValidationRun @relation(fields: [validationRunId], references: [id], onDelete: Cascade)
+
+  @@unique([validationRunId, criterionId])
+  @@map("criterion_result")
 }

@@ -1,4 +1,4 @@
-import type { ProjectStatus, Role, StageStatus, StageType } from '@scrum/shared';
+import type { GateState, ProjectStatus, Role, StageStatus, StageType } from '@scrum/shared';
 
 export interface Me {
   id: string;
@@ -64,4 +64,57 @@ export interface Activity {
   entityId: string | null;
   actorPseudonym: string | null;
   occurredAt: string;
+}
+
+export interface BacklogItem {
+  id: string;
+  code: string;
+  kind: 'USER_STORY' | 'ITEM';
+  title: string;
+  asA: string | null;
+  iWant: string | null;
+  soThat: string | null;
+  description: string | null;
+  acceptanceCriteria: string[];
+  priority: number;
+  version: number;
+  gateState: GateState;
+  updatedAt: string;
+}
+
+export interface CriterionResult {
+  criterionId: string;
+  origin: 'OFFICIAL' | 'ADDITIONAL';
+  mandatory: boolean;
+  outcome: 'MET' | 'NOT_MET' | 'NOT_APPLICABLE';
+  evidence: string;
+  explanation: string;
+  recommendation: string;
+  source: 'RULE_CHECK';
+}
+
+export interface ValidationRun {
+  id: string;
+  gateId: string;
+  targetType: string;
+  targetId: string;
+  targetVersion: number;
+  attemptNo: number;
+  status: 'PASSED' | 'FAILED' | 'ERROR';
+  catalogVersion: string;
+  aiStatus: string;
+  results: CriterionResult[];
+  aiObservations: unknown[];
+  startedAt: string;
+  finishedAt: string;
+}
+
+export interface CriteriaCatalog {
+  catalogVersion: string;
+  gates: {
+    gateId: string;
+    title: string;
+    blocking: boolean;
+    criteria: { id: string; title: string; origin: 'OFFICIAL' | 'ADDITIONAL'; mandatory: boolean; scrumGuideNote: string | null }[];
+  }[];
 }

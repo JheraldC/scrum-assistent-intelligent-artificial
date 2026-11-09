@@ -5,12 +5,15 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { es } from '../i18n/es';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
+import { BacklogItemPage } from '../pages/backlog/BacklogItemPage';
+import { BacklogPage } from '../pages/backlog/BacklogPage';
 import { FlowPage } from '../pages/flow/FlowPage';
 import { HistoryPage } from '../pages/history/HistoryPage';
 import { MembersPage } from '../pages/projects/MembersPage';
 import { ProjectFormPage } from '../pages/projects/ProjectFormPage';
 import { ProjectLayout } from '../pages/projects/ProjectLayout';
 import { ProjectsPage } from '../pages/projects/ProjectsPage';
+import { ValidationsPage } from '../pages/validations/ValidationsPage';
 
 // Las pantallas de cada historia se registran aquí (rutas de plan.md, "Diseño de interfaces").
 export const router = createBrowserRouter([
@@ -30,6 +33,10 @@ export const router = createBrowserRouter([
             element: <ProjectLayout />,
             children: [
               { index: true, element: <FlowPage /> },
+              { path: 'backlog', element: <BacklogPage /> },
+              { path: 'backlog/nuevo', element: <BacklogItemPage /> },
+              { path: 'backlog/:itemId', element: <BacklogItemPage /> },
+              { path: 'validaciones', element: <ValidationsPage /> },
               { path: 'participantes', element: <MembersPage /> },
               { path: 'historial', element: <HistoryPage /> },
               { path: 'ajustes', element: <ProjectFormPage /> },

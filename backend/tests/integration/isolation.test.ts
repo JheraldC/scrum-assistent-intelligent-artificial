@@ -35,6 +35,14 @@ const routes: RouteCase[] = [
   { method: 'get', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/stages/PLANNING/evidence` },
   { method: 'post', path: (c) => `/projects/${c.projectId}/sprints/${c.sprintId}/stages/PLANNING/evidence`, body: () => ({ content: 'texto' }) },
   { method: 'get', path: (c) => `/projects/${c.projectId}/activity` },
+  // US2: backlog y validaciones
+  { method: 'get', path: (c) => `/projects/${c.projectId}/backlog` },
+  { method: 'post', path: (c) => `/projects/${c.projectId}/backlog`, body: () => ({ kind: 'ITEM', title: 'x', description: 'y', priority: 1 }) },
+  { method: 'get', path: (c) => `/projects/${c.projectId}/backlog/${c.otherUserId}` },
+  { method: 'patch', path: (c) => `/projects/${c.projectId}/backlog/${c.otherUserId}`, body: () => ({ kind: 'ITEM', title: 'x', description: 'y', priority: 1, expectedVersion: 1 }) },
+  { method: 'get', path: (c) => `/projects/${c.projectId}/validations` },
+  { method: 'post', path: (c) => `/projects/${c.projectId}/validations`, body: (c) => ({ gateId: 'GATE-STORY', targetType: 'BACKLOG_ITEM', targetId: c.otherUserId }) },
+  { method: 'get', path: (c) => `/projects/${c.projectId}/validations/${c.otherUserId}` },
 ];
 
 describe('aislamiento entre proyectos (T028)', () => {
