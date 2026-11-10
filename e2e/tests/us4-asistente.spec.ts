@@ -76,12 +76,16 @@ test.describe('US4: asistente conversacional con IA', () => {
     await page.getByRole('button', { name: 'Guardar' }).click();
     await page.getByRole('button', { name: 'Evaluar historia' }).click();
 
-    const panel = page.getByRole('region', { name: 'Resultado de la evaluación' });
+    const asistente = page.getByRole('complementary', { name: 'Asistente de Scrum' });
+    const panel = asistente.getByRole('region', { name: 'Resultado de la evaluación' });
     await expect(panel.getByRole('heading', { level: 3 })).toContainText('No aprobada');
-    await panel.getByRole('button', { name: 'Pedir recomendación de IA' }).click();
-    const ia = panel.getByRole('region', { name: 'Recomendaciones de IA' });
+
+    // El botón de la pantalla envía solo la solicitud; la recomendación llega al panel, etiquetada como IA.
+    await page.getByRole('button', { name: 'Pedir recomendación de IA' }).click();
+    const ia = asistente.locator('[data-recommendation]');
     await expect(ia.getByText('Recomendación de IA').first()).toBeVisible();
-    await expect(ia.getByText(/Revise que el objetivo y el trabajo/)).toBeVisible();
-    await expect(panel.getByRole('heading', { level: 3 })).toContainText('No aprobada');
+    await expect(ia.getByText(/La validación sigue siendo por reglas/)).toBeVisible();
+    // La recomendación no cambia el estado de la compuerta.
+    await expect(page.locator('main [data-evaluation-summary]')).toContainText('No aprobada');
   });
 });

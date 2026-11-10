@@ -3,8 +3,8 @@ import { RETRO_ACTION_STATUSES } from '@scrum/shared';
 import { api, ApiError } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { Member, RetroAction, Retrospective, ValidationRun } from '../../api/types';
-import { useCatalogTitles } from '../../api/useCatalogTitles';
-import { useAssistantFocus } from '../../components/agent/AssistantContext';
+import { EvaluationSummary, RecommendButton } from '../../components/agent/AiActions';
+import { useAssistant, useAssistantChanges, useAssistantFocus } from '../../components/agent/AssistantContext';
 import { CeremonyHelp } from '../../components/team/CeremonyHelp';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -14,7 +14,6 @@ import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { Toast } from '../../components/ui/Toast';
 import { VersionConflictDialog } from '../../components/ui/VersionConflictDialog';
 import { ExceptionDialog } from '../../components/validation/ExceptionDialog';
-import { GateResultPanel } from '../../components/validation/GateResultPanel';
 import { GateStateBadge } from '../../components/validation/GateStateBadge';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
@@ -145,9 +144,12 @@ function ActionRow({ action, members, followUpOnly, url, onSaved, onError, onCon
           onChange={(e) => setNote(e.target.value)}
         />
       </div>
-      <Button variant="secondary" disabled={busy} onClick={() => void save()}>
-        {followUpOnly ? es.retro.updateFollowUp : es.retro.saveAction}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" disabled={busy} onClick={() => void save()}>
+          {followUpOnly ? es.retro.updateFollowUp : es.retro.saveAction}
+        </Button>
+        {!followUpOnly ? <RecommendButton artifact={{ artifactType: 'RETRO_ACTION', artifactId: id, label: `Acción: ${action.description.slice(0, 50)}` }} /> : null}
+      </div>
     </li>
   );
 }
@@ -156,7 +158,8 @@ function ActionRow({ action, members, followUpOnly, url, onSaved, onError, onCon
 export function RetrospectivePage() {
   const { project, reload: reloadProject } = useProject();
   const sprint = project.openSprint;
-  const titles = useCatalogTitles();
+  const { reportEvaluation } = useAssistant();
+  const changes = useAssistantChanges();
   const isFacilitator = project.myRole === 'FACILITATOR';
 
   const [retro, setRetro] = useState<Retrospective | null>(null);
@@ -215,6 +218,12 @@ export function RetrospectivePage() {
       .catch((error: unknown) => setFailure(toFormFailure(error)))
       .finally(() => setLoading(false));
   }, [sprint?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tras aplicar una propuesta de la IA, el formulario muestra la versión guardada.
+  useEffect(() => {
+    if (changes > 0) void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changes]);
 
   if (loading) return <LoadingSkeleton />;
   if (!sprint) {
@@ -295,6 +304,7 @@ export function RetrospectivePage() {
     );
     if (result) {
       setRun(result);
+      reportEvaluation(result, `Retrospectiva del Sprint ${sprint!.number}`, { artifactType: 'RETROSPECTIVE', artifactId: sprint!.id, label: `Retrospectiva del Sprint ${sprint!.number}` });
       setAskException(false);
       await load(true);
       reloadProject();
@@ -474,6 +484,7 @@ export function RetrospectivePage() {
         <Button variant="secondary" disabled={busy !== null || dirty} onClick={() => void onEvaluate()}>
           {busy === 'evaluate' ? es.retro.evaluating : es.retro.evaluate}
         </Button>
+        <RecommendButton artifact={{ artifactType: 'RETROSPECTIVE', artifactId: sprint.id, label: `Retrospectiva del Sprint ${sprint.number}` }} disabled={dirty} />
         <Button
           variant="secondary"
           disabled={busy !== null || !canComplete}
@@ -505,7 +516,7 @@ export function RetrospectivePage() {
       ) : null}
 
       {run ? (
-        <GateResultPanel run={run} titles={titles} projectId={project.id} onRunUpdated={setRun} />
+        <EvaluationSummary run={run} label={`Retrospectiva del Sprint ${sprint.number}`} artifact={{ artifactType: 'RETROSPECTIVE', artifactId: sprint.id, label: `Retrospectiva del Sprint ${sprint.number}` }} />
       ) : null}
       {notice ? <Toast message={notice} onClose={() => setNotice(null)} /> : null}
     </section>

@@ -20,6 +20,7 @@ Las decisiones de diseño previas a la implementación están en
 
 ## Decisiones tomadas durante la implementación
 
+- **0003 – Panel unificado y recomendaciones por campo**: ver [0003](0003-panel-unificado-y-recomendaciones-por-campo.md).
 - **0002 – Equipo, documentación y sugerencias de IA**: ver [0002](0002-equipo-documentacion-y-sugerencias-de-ia.md).
 
 - **0001 – Versiones fijas**: Prisma 7.10.1 (la etiqueta `latest` de npm apunta a una versión

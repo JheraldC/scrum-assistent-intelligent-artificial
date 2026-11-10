@@ -29,11 +29,15 @@ export function BacklogPage() {
           <Link to={`${base}/nuevo`} className="min-h-11 inline-flex items-center rounded-md bg-[var(--color-primary)] px-4 py-2 text-[var(--color-primary-contrast)]">
             {es.backlog.newStory}
           </Link>
-          <Link to={`${base}/nuevo?tipo=ITEM`} className={linkButton}>
-            {es.backlog.newItem}
-          </Link>
         </div>
       </div>
+      <details className="mb-4 rounded-md border border-dashed border-[var(--color-border)] p-3 text-sm" data-other-kind>
+        <summary className="min-h-6 cursor-pointer font-medium">{es.backlog.otherKind}</summary>
+        <p className="mt-2">{es.backlog.otherKindHelp}</p>
+        <Link to={`${base}/nuevo?tipo=ITEM`} className={`${linkButton} mt-2`}>
+          {es.backlog.otherKindCreate}
+        </Link>
+      </details>
       {loading ? <LoadingSkeleton /> : null}
       {error ? <ErrorBanner message={error.message} onRetry={reload} /> : null}
       {data && data.length === 0 ? <EmptyState title={es.backlog.empty} description={es.backlog.emptyHelp} /> : null}

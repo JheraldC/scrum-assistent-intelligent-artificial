@@ -2,8 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { BacklogItem, Sprint, ValidationRun } from '../../api/types';
-import { useCatalogTitles } from '../../api/useCatalogTitles';
-import { useAssistantFocus } from '../../components/agent/AssistantContext';
+import { EvaluationSummary, RecommendButton } from '../../components/agent/AiActions';
+import { useAssistant, useAssistantFocus } from '../../components/agent/AssistantContext';
 import { CeremonyHelp } from '../../components/team/CeremonyHelp';
 import { TasksPanel } from '../../components/team/TasksPanel';
 import { Button } from '../../components/ui/Button';
@@ -13,7 +13,6 @@ import { FormField } from '../../components/ui/FormField';
 import { Toast } from '../../components/ui/Toast';
 import { VersionConflictDialog } from '../../components/ui/VersionConflictDialog';
 import { ExceptionDialog } from '../../components/validation/ExceptionDialog';
-import { GateResultPanel } from '../../components/validation/GateResultPanel';
 import { GateStateBadge } from '../../components/validation/GateStateBadge';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
@@ -22,7 +21,7 @@ import { useProject } from '../projects/ProjectLayout';
 export function PlanningPage() {
   const { project, reload } = useProject();
   const sprint: Sprint | null = project.openSprint;
-  const titles = useCatalogTitles();
+  const { reportEvaluation } = useAssistant();
   const isFacilitator = project.myRole === 'FACILITATOR';
 
   const [backlog, setBacklog] = useState<BacklogItem[]>([]);
@@ -62,6 +61,12 @@ export function PlanningPage() {
     setSelected(next.itemIds);
     setDirty(false);
   }
+
+  // Si otra persona (o una propuesta aceptada) cambió el Sprint, el formulario se actualiza con la versión guardada.
+  useEffect(() => {
+    if (sprint) adopt(sprint);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sprint?.version]);
 
   if (!sprint) return <EmptyState title={es.planning.noSprint} />;
   const closed = sprint.status === 'CLOSED';
@@ -108,6 +113,7 @@ export function PlanningPage() {
     );
     if (result) {
       setRun(result);
+      reportEvaluation(result, `Planificación del Sprint ${sprint!.number}`, { artifactType: 'SPRINT', artifactId: sprint!.id, label: `Planificación del Sprint ${sprint!.number}` });
       setAskException(false);
       reload();
     }
@@ -228,6 +234,7 @@ export function PlanningPage() {
           <Button variant="secondary" disabled={busy !== null || dirty || closed} onClick={() => void onEvaluate()}>
             {busy === 'evaluate' ? es.planning.evaluating : es.planning.evaluate}
           </Button>
+          <RecommendButton artifact={{ artifactType: 'SPRINT', artifactId: sprint.id, label: `Planificación del Sprint ${sprint.number}` }} disabled={dirty} />
           <Button variant="secondary" disabled={busy !== null || !canComplete || closed} onClick={() => void onComplete()}>
             {busy === 'complete' ? es.planning.completing : es.planning.complete}
           </Button>
@@ -259,7 +266,7 @@ export function PlanningPage() {
 
       <TasksPanel projectId={project.id} sprintId={sprint.id} itemIds={sprint.itemIds} onChanged={reload} />
 
-      {run ? <GateResultPanel run={run} titles={titles} projectId={project.id} onRunUpdated={setRun} /> : null}
+      {run ? <EvaluationSummary run={run} label={`Planificación del Sprint ${sprint.number}`} artifact={{ artifactType: 'SPRINT', artifactId: sprint.id, label: `Planificación del Sprint ${sprint.number}` }} /> : null}
       {run?.exception ? (
         <p className="rounded-md border border-[var(--color-warning)] bg-[var(--color-warning-bg)] p-3 text-sm text-[var(--color-warning)]">
           <strong>Excepción:</strong> {run.exception.justification} ({run.exception.authorizedByPseudonym})

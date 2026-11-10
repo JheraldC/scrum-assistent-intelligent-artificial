@@ -77,6 +77,8 @@ interface Props {
   /** Con estos dos datos se muestra el botón «Pedir recomendación de IA» (bajo demanda). */
   projectId?: string;
   onRunUpdated?: (run: ValidationRun) => void;
+  /** En el panel del asistente no se repite la sección de IA: las recomendaciones se piden aparte. */
+  hideAi?: boolean;
 }
 
 /** Observaciones de IA de una evaluación: siempre etiquetadas y separadas de las reglas (FR-022). */
@@ -143,7 +145,7 @@ function AiSection({ run, projectId, onRunUpdated }: Pick<Props, 'run' | 'projec
 }
 
 /** Resultado de una evaluación: cada criterio con su estado, origen, evidencia y recomendación. */
-export function GateResultPanel({ run, titles, projectId, onRunUpdated }: Props) {
+export function GateResultPanel({ run, titles, projectId, onRunUpdated, hideAi }: Props) {
   const met = run.results.filter((r) => r.outcome === 'MET').length;
   const notMet = run.results.filter((r) => r.outcome === 'NOT_MET').length;
   return (
@@ -159,7 +161,7 @@ export function GateResultPanel({ run, titles, projectId, onRunUpdated }: Props)
           <CriterionRow key={result.criterionId} result={result} title={titles[result.criterionId] ?? result.criterionId} />
         ))}
       </ul>
-      <AiSection run={run} projectId={projectId} onRunUpdated={onRunUpdated} />
+      {hideAi ? null : <AiSection run={run} projectId={projectId} onRunUpdated={onRunUpdated} />}
     </section>
   );
 }

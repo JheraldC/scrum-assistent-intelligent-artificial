@@ -332,6 +332,27 @@ describe('recomendaciones de IA campo por campo y propuestas de cambio', () => {
     });
   });
 
+  describe('compatibilidad con datos existentes', () => {
+    it('los elementos generales (ITEM) siguen funcionando: usan «descripción» en lugar del formato de historia', async () => {
+      const item = (await s.ana.client.post(`${p()}/backlog`, { kind: 'ITEM', title: 'Mejora técnica del servidor', description: 'Actualizar dependencias', priority: 2 })).json() as { id: string };
+      const rec = await ok('BACKLOG_ITEM', item.id);
+      expect(rec.fields.map((f) => f.field)).toEqual(['title', 'description', 'acceptanceCriteria']);
+      const title = rec.fields.find((f) => f.suggestion)!;
+      await aceptar(title);
+      const saved = await getTestDb().backlogItem.findUniqueOrThrow({ where: { id: item.id } });
+      expect(saved.kind).toBe('ITEM');
+      expect(saved.title).toContain('revisada por la IA simulada');
+      expect(saved.description).toBe('Actualizar dependencias'); // lo no tocado se conserva
+    });
+
+    it('un proyecto sin Definition of Done (como los creados antes) se puede recomendar y aplicar sin bloquear nada', async () => {
+      expect((await getTestDb().project.findUniqueOrThrow({ where: { id: s.projectId } })).definitionOfDone).toBe('');
+      const rec = await ok('PROJECT', s.projectId);
+      expect(rec.fields.map((f) => f.field)).toEqual(['productGoal', 'definitionOfDone']);
+      expect(rec.fields[1]!.currentValue).toBe('');
+    });
+  });
+
   describe('autorización, aislamiento y compuertas independientes de la IA', () => {
     it('un ajeno no puede pedir recomendaciones (404), un artefacto de otro proyecto tampoco, y el tipo inválido da 422', async () => {
       expect((await recomendar('BACKLOG_ITEM', s.storyId, intruso)).statusCode).toBe(404);

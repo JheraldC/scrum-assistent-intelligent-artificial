@@ -4,6 +4,7 @@ import { api } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { TrackingEntry, TrackingKind } from '../../api/types';
 import { useResource } from '../../api/useResource';
+import { RecommendButton } from '../../components/agent/AiActions';
 import { CeremonyHelp } from '../../components/team/CeremonyHelp';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -163,7 +164,8 @@ export function TrackingPage() {
         onClick={() => void onComplete()}
       >
         {busy === 'complete' ? es.tracking.completing : es.tracking.complete}
-      </Button>
+      </Button>{' '}
+      <RecommendButton artifact={{ artifactType: 'TRACKING', artifactId: sprint.id, label: `Seguimiento del Sprint ${sprint.number}` }} />
       {notice ? <Toast message={notice} onClose={() => setNotice(null)} /> : null}
     </section>
   );

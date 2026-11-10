@@ -38,8 +38,8 @@ export function ProjectLayout() {
 
   return (
     <ProjectContext.Provider value={{ project: data, reload }}>
-      <AssistantProvider>
-        <AssistantDock projectId={data.id} onProjectChanged={reload}>
+      <AssistantProvider projectId={data.id} onProjectChanged={reload}>
+        <AssistantDock>
         <header className="mb-4">
           <h1 className="text-2xl font-semibold">{data.name}</h1>
           <p className="text-[var(--color-muted)]">{data.productGoal}</p>

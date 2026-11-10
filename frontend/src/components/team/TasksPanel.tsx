@@ -5,6 +5,8 @@ import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { BacklogItem, Member, SprintTask, TaskStatusValue } from '../../api/types';
 import { useResource } from '../../api/useResource';
 import { es } from '../../i18n/es';
+import { RecommendButton } from '../agent/AiActions';
+import { useAssistantChanges } from '../agent/AssistantContext';
 import { Button } from '../ui/Button';
 import { ErrorBanner } from '../ui/ErrorBanner';
 import { FormField } from '../ui/FormField';
@@ -27,7 +29,8 @@ const selectClass = 'mt-1 block w-full rounded-md border border-[var(--color-bor
  */
 export function TasksPanel({ projectId, sprintId, itemIds, onChanged }: Props) {
   const url = `/projects/${projectId}/sprints/${sprintId}/tasks`;
-  const tasks = useResource((signal) => api<SprintTask[]>(url, { signal }), [url]);
+  const changes = useAssistantChanges();
+  const tasks = useResource((signal) => api<SprintTask[]>(url, { signal }), [url, changes]);
   const [items, setItems] = useState<BacklogItem[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [title, setTitle] = useState('');
@@ -114,9 +117,12 @@ export function TasksPanel({ projectId, sprintId, itemIds, onChanged }: Props) {
                 </select>
               </div>
             </div>
-            <Button variant="secondary" className="mt-2" onClick={() => void guard(() => api(`${url}/${task.id}`, { method: 'DELETE' }), es.team.taskSaved)}>
-              {es.team.deleteTask}
-            </Button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => void guard(() => api(`${url}/${task.id}`, { method: 'DELETE' }), es.team.taskSaved)}>
+                {es.team.deleteTask}
+              </Button>
+              <RecommendButton artifact={{ artifactType: 'SPRINT_TASK', artifactId: task.id, label: `Tarea: ${task.title.slice(0, 50)}` }} />
+            </div>
           </li>
         ))}
       </ul>

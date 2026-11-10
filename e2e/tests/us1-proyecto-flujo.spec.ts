@@ -29,7 +29,7 @@ test.describe('US1: cuentas, proyectos y flujo guiado', () => {
     await expect(page.locator('[data-stage="PLANNING"]')).toHaveAttribute('data-status', 'IN_PROGRESS');
 
     // Otra cuenta, en otro contexto de navegador.
-    const contextoB = await browser.newContext({ baseURL: 'http://localhost:5173' });
+    const contextoB = await browser.newContext({ baseURL: process.env.E2E_BASE_URL });
     const paginaB = await contextoB.newPage();
     const emailBeto = await register(paginaB);
     await expect(paginaB.getByText(nombre)).toHaveCount(0); // no ve proyectos ajenos

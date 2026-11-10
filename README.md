@@ -73,7 +73,7 @@ npm run lint
 npm run typecheck
 npm run test:unit          # motor de reglas, CSV, presupuesto de IA… (sin base de datos)
 npm run test:integration   # API contra PostgreSQL real (TEST_DATABASE_URL) con IA simulada
-npm run test:e2e           # Playwright: flujo completo en escritorio y móvil
+npm run test:e2e           # Playwright: flujo completo en escritorio y móvil (levanta su propio servidor, con IA simulada)
 ```
 
 - Las pruebas de integración aplican las migraciones a `TEST_DATABASE_URL` por sí solas.
@@ -92,6 +92,20 @@ npm run test:e2e           # Playwright: flujo completo en escritorio y móvil
   excluir del contexto.
 - **Evidencias**: texto o enlace, más un archivo opcional (`.md .txt .pdf .png .jpg`, máx. 5 MB). La aplicación guarda el
   archivo de forma privada pero **no verifica su contenido**.
+- **Evaluar y pedir recomendaciones (panel derecho)**: los botones siguen en cada pantalla.
+  - **Evaluar historia / planificación / Review / retrospectiva** ejecuta la validación por reglas (determinista, **sin IA**) y
+    muestra el resultado completo en el panel: estado, criterios, evidencia, por qué y cómo corregir. Bajo el formulario queda
+    solo un indicador compacto.
+  - **Pedir recomendación de IA** envía sola una solicitud contextual (sin copiar ni pegar un prompt) y el panel responde
+    **campo por campo**: *cambio recomendado* (con valor actual y propuesto), *sin cambios recomendados*, *sin certeza* o *el
+    modelo no se pronunció*. Cada campo indica su respaldo: criterios de las reglas, documento citado o inferencia de la IA.
+  - Funciona para historias y elementos del backlog, Product Goal y Definition of Done, planificación, tareas, Review,
+    retrospectiva y acciones. El **seguimiento** es un historial sin campos editables: solo recibe un análisis asesor de IA
+    (preguntas de facilitación, riesgos). Los artefactos sin reglas se rotulan «análisis asesor de IA», nunca como validación.
+  - **Aplicar** una propuesta exige revisar valor actual y propuesto, poder editarlo y confirmar. Se usa el mismo servicio y
+    control de versión que una edición manual: si el artefacto cambió, se avisa del conflicto y no se sobrescribe nada. Tras
+    aplicar, la pantalla se actualiza y las **reglas** reevalúan; la IA no cambia estados de compuerta ni asigna personas.
+  - La conversación se conserva mientras se navega por el proyecto.
 - **Asistente**: a la derecha en escritorio (se contrae y se redimensiona arrastrando o con las flechas del teclado); en
   móvil se abre con el botón flotante y se cierra con ✕ o Escape. Cada respuesta indica el contexto usado, cita documento y
   sección cuando se apoya en uno y distingue la inferencia de la IA. **Para responder, el contenido pertinente del proyecto
@@ -109,7 +123,8 @@ npm run test:e2e           # Playwright: flujo completo en escritorio y móvil
 - Los archivos se guardan en PostgreSQL (`bytea`): adecuado para este prototipo; con mucho volumen convendría almacenamiento de objetos.
 - Solo el **Facilitador** edita el Product Goal / DoD y sube o cambia documentos; una responsabilidad (p. ej. Product Owner) no concede permisos.
 - Aún no se ha comprobado la calidad de las propuestas y citas con el proveedor real de IA (tarea T108/T166).
-- La imagen Docker y el despliegue en producción siguen sin construirse ni ejecutarse (ver `docs/deploy.md`).
+- La imagen Docker y el despliegue en producción siguen sin construirse ni ejecutarse: este equipo no tiene Docker (ver `docs/deploy.md`).
+- Las pruebas e2e usan su propio servidor (puertos 5273/3100, IA simulada y base de pruebas); si esos puertos están ocupados fallan en lugar de reutilizar el servidor de desarrollo.
 
 ## Arquitectura
 
@@ -175,5 +190,6 @@ esquema en [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma).
 
 ## Convenciones
 
+- Las pruebas e2e nunca reutilizan un servidor ya abierto (podría ser el de desarrollo, con la IA real); `PW_REUSE_SERVER=1` lo permite a propósito.
 - Los commits no incluyen coautores automáticos.
 - Los textos visibles están en español; el código y los identificadores, en inglés.

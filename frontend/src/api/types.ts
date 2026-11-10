@@ -293,7 +293,7 @@ export interface DevelopersView {
   impediments: { id: string; content: string; createdAt: string }[];
 }
 
-export type SuggestionKindValue = 'STORY' | 'ACCEPTANCE_CRITERIA' | 'TASK' | 'RISK' | 'DEPENDENCY' | 'QUESTION';
+export type SuggestionKindValue = 'STORY' | 'ACCEPTANCE_CRITERIA' | 'TASK' | 'FIELD_CHANGE' | 'RISK' | 'DEPENDENCY' | 'QUESTION';
 
 export interface Suggestion {
   id: string;
@@ -309,9 +309,24 @@ export interface Suggestion {
   itemId: string | null;
   itemCode: string | null;
   sources: { document: string; section: string | null }[];
-  basis: 'DOCUMENTO' | 'INFERENCIA';
+  basis: 'REGLAS' | 'DOCUMENTO' | 'INFERENCIA';
   effect: string;
   source: 'AI_RECOMMENDATION';
+  /** Solo propuestas FIELD_CHANGE: el campo de un artefacto con su valor actual y el propuesto. */
+  change: {
+    artifactType: string;
+    artifactId: string;
+    artifactLabel: string;
+    field: string;
+    fieldLabel: string;
+    fieldKind: 'text' | 'list';
+    currentValue: string | string[];
+    proposedValue: string | string[];
+    rationale: string;
+    basis: 'REGLAS' | 'DOCUMENTO' | 'INFERENCIA';
+    criterionIds: string[];
+    hasRules: boolean;
+  } | null;
 }
 
 export interface ResolvedSuggestion {
@@ -319,4 +334,39 @@ export interface ResolvedSuggestion {
   result: { entity: string | null; id: string | null };
   revalidation: { runId: string; gateId: string; status: string; attemptNo: number } | null;
   notice: string;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Recomendaciones por campo (panel del asistente)
+// ---------------------------------------------------------------------------------------------
+
+export type ArtifactTypeValue = 'BACKLOG_ITEM' | 'PROJECT' | 'SPRINT' | 'SPRINT_TASK' | 'TRACKING' | 'SPRINT_REVIEW' | 'RETROSPECTIVE' | 'RETRO_ACTION';
+export type FieldValueDto = string | string[];
+
+export interface FieldRecommendation {
+  field: string;
+  label: string;
+  kind: 'text' | 'list';
+  status: 'CHANGE' | 'NO_CHANGE' | 'UNSURE' | 'NO_RESPONSE';
+  currentValue: FieldValueDto;
+  proposedValue: FieldValueDto | null;
+  rationale: string;
+  basis: 'REGLAS' | 'DOCUMENTO' | 'INFERENCIA';
+  criterionIds: string[];
+  sources: { document: string; section: string | null }[];
+  suggestion: Suggestion | null;
+}
+
+export interface Recommendation {
+  interactionId: string;
+  artifact: { type: ArtifactTypeValue; id: string; label: string; version: number | null; editable: boolean; hasRules: boolean };
+  kind: 'RULES_AND_AI' | 'AI_ONLY';
+  summary: string;
+  fields: FieldRecommendation[];
+  questions: string[];
+  contextUsed: { projectData: string[]; documents: { document: string; sections: string[] }[]; documentsAvailable: number; focus: string | null };
+  providerNotice: string;
+  disclaimer: string;
+  source: 'AI_RECOMMENDATION';
+  model: string;
 }

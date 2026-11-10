@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { Project } from '../../api/types';
+import { RecommendButton } from '../../components/agent/AiActions';
+import { useAssistantChanges } from '../../components/agent/AssistantContext';
 import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { FormField } from '../../components/ui/FormField';
@@ -22,6 +24,7 @@ export function ProjectFormPage() {
   const [failure, setFailure] = useState<FormFailure | null>(null);
   const [conflict, setConflict] = useState<Project | null>(null);
   const [saved, setSaved] = useState(false);
+  const changes = useAssistantChanges();
 
   function apply(project: Project) {
     setValues({ name: project.name, description: project.description, productGoal: project.productGoal, definitionOfDone: project.definitionOfDone ?? '' });
@@ -34,7 +37,7 @@ export function ProjectFormPage() {
       .then(apply)
       .catch((error: unknown) => setFailure(toFormFailure(error)))
       .finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, changes]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -131,6 +134,7 @@ export function ProjectFormPage() {
           <Button variant="secondary" onClick={() => navigate(-1)}>
             {es.common.cancel}
           </Button>
+          {editing && projectId ? <RecommendButton artifact={{ artifactType: 'PROJECT', artifactId: projectId, label: 'Product Goal y Definition of Done' }} /> : null}
         </div>
       </form>
       {saved ? <Toast message={es.projects.saved} onClose={() => setSaved(false)} /> : null}

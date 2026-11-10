@@ -373,3 +373,7 @@ Migración `20261110061047_responsabilidades_documentos_tareas_sugerencias` (adi
 | `project_document_version` | `document_id`, `version`, `file_name`, `mime_type`, `size_bytes` ≤ 2 MB, `data bytea`, `text_content?`, `uploaded_by` | `text_content` solo `.md`/`.txt` |
 | `evidence_attachment` | `evidence_id` (PK), `file_name`, `mime_type`, `size_bytes` ≤ 5 MB, `data bytea` | Una por evidencia, opcional |
 | `ai_suggestion` | `project_id`, `kind`, `payload`, `sources`, `target_version?`, `status` PROPOSED/ACCEPTED/DISCARDED, `resolved_by?`, `applied_entity?`, `applied_id?` | La IA solo escribe aquí |
+
+### Mejora 2026-11 (2): cambios
+
+Migración `20261110120000_recomendaciones_por_campo` (aditiva): `agent_kind` añade `RECOMMENDATION` y `suggestion_kind` añade `FIELD_CHANGE`. El campo `ai_suggestion.payload` de una propuesta `FIELD_CHANGE` guarda `{ artifactType, artifactId, field, currentValue, proposedValue, rationale, basis, criterionIds }` y `target_version` la versión del artefacto sobre la que se recomendó.

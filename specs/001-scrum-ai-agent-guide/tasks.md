@@ -434,3 +434,20 @@ Task: "GateResultPanel y SourceBadge en frontend/src/components/validation/"
 - [ ] T164 Permitir que el Product Owner (responsabilidad, no permiso) edite el Product Goal / DoD y suba documentos — hoy solo el Facilitador; requiere decidir si una responsabilidad puede conceder permisos
 - [ ] T165 Almacenamiento de archivos fuera de la base de datos (objetos/disco persistente) si el volumen crece; hoy `bytea` en PostgreSQL (≈ 5 MB por adjunto, 2 MB por documento)
 - [ ] T166 Verificar el panel lateral y las propuestas con el proveedor de IA real (T108) y calibrar la calidad de las propuestas y de las citas
+
+
+---
+
+## Phase 12: Mejora 2026-11 (2) — panel unificado y recomendaciones por campo
+
+- [X] T167 Corregir la creación concurrente de la retrospectiva y de la Review (`INSERT … ON CONFLICT DO NOTHING`) con pruebas de regresión (200 y 409, nunca 500)
+- [X] T168 Migración `recomendaciones_por_campo` y registro de artefactos editables (`agent/artifacts.ts`)
+- [X] T169 `POST …/agent/recommend`: recomendación por campo con estados explícitos, base verificada (reglas / documento / inferencia) y propuestas `FIELD_CHANGE`; prompt `recommend.md`; salida validada
+- [X] T170 Aplicar `FIELD_CHANGE` con los servicios existentes (`joinTransaction`), control de versión, reevaluación por reglas y registro de autor y origen para historia/elemento, Product Goal/DoD, planificación, tarea, Review, retrospectiva y acción
+- [X] T171 Conversación unificada en el panel (evaluaciones por reglas, recomendaciones, propuestas informativas y modificadoras separadas); indicador compacto bajo los formularios; conversación persistente al navegar
+- [X] T172 Botones «Pedir recomendación de IA» en historia, Product Goal/DoD, planificación, tareas, seguimiento, Review, retrospectiva y acciones
+- [X] T173 Product Backlog: «Nueva historia» como acción principal y «otro tipo de elemento» como opción secundaria explicada; vistas con plan de trabajo, decisiones compartidas y facilitación automática
+- [X] T174 Pruebas: unitarias (salida y IA simulada), integración (`agent-recommend`, concurrencia, contrato OpenAPI) y e2e `us9-panel-unificado`; las pruebas e2e usan sus propios puertos y no reutilizan el servidor de desarrollo
+- [ ] T175 Construir la imagen Docker (este equipo no tiene Docker) y comprobar que sirve API y estáticos desde el mismo origen
+- [ ] T176 Verificar la calidad de las recomendaciones por campo y de las citas con el proveedor real (T108) y calibrar el prompt `recommend.md`
+- [ ] T177 Decidir si el seguimiento debe poder editarse (hoy es un historial de solo inserción, así que solo recibe análisis asesor)

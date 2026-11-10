@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { DevelopersView, Member, ProductOwnerView, ScrumMasterView, ScrumResponsibilityValue, StageSummary } from '../../api/types';
+import type { Decision, DevelopersView, Member, ProductOwnerView, ScrumMasterView, ScrumResponsibilityValue, StageSummary } from '../../api/types';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../app/SessionProvider';
 import { useAssistant } from '../../components/agent/AssistantContext';
@@ -62,7 +62,7 @@ function Header({ goal, dod, productGoal }: { goal?: string | null; dod: string;
 }
 
 function ScrumMasterPanel({ projectId }: { projectId: string }) {
-  const { ask } = useAssistant();
+  const { send } = useAssistant();
   const { data, error, loading, reload } = useResource((signal) => api<ScrumMasterView>(`/projects/${projectId}/views/scrum-master`, { signal }), [projectId]);
   if (loading && !data) return <LoadingSkeleton />;
   if (error || !data) return <ErrorBanner message={error?.message ?? es.errors.generic} onRetry={reload} />;
@@ -95,7 +95,7 @@ function ScrumMasterPanel({ projectId }: { projectId: string }) {
             </li>
           ))}
         </ul>
-        <Button variant="secondary" className="mt-2" onClick={() => ask(es.views.facilitationPrompt)}>
+        <Button variant="secondary" className="mt-2" onClick={() => void send(es.views.facilitationPrompt)}>
           {es.views.facilitation}
         </Button>
       </section>
@@ -227,6 +227,12 @@ function DevelopersPanel({ projectId }: { projectId: string }) {
   return (
     <div data-view="developers">
       <Header goal={data.sprint.sprintGoal} dod={data.project.definitionOfDone} productGoal={data.project.productGoal} />
+      <section className="mb-4" aria-labelledby="dev-plan">
+        <h3 id="dev-plan" className="mb-2 text-lg font-semibold">
+          {es.views.workPlan}
+        </h3>
+        <p className={`${card} whitespace-pre-wrap text-sm`}>{data.sprint.workPlan.trim() !== '' ? data.sprint.workPlan : es.views.noPlan}</p>
+      </section>
       <section className="mb-4" aria-labelledby="dev-sel">
         <h3 id="dev-sel" className="mb-2 text-lg font-semibold">
           {es.views.selected}
@@ -270,6 +276,27 @@ function DevelopersPanel({ projectId }: { projectId: string }) {
   );
 }
 
+/** Objetivos, acuerdos y decisiones recientes: visibles para todo el equipo en cualquier vista. */
+function SharedDecisions({ projectId }: { projectId: string }) {
+  const { data } = useResource((signal) => api<Decision[]>(`/projects/${projectId}/decisions`, { signal }), [projectId]);
+  const recent = (data ?? []).slice(0, 5);
+  return (
+    <section className="mt-6" aria-labelledby="comun-dec">
+      <h3 id="comun-dec" className="mb-2 text-lg font-semibold">
+        {es.views.decisions}
+      </h3>
+      {recent.length === 0 ? <p className="text-sm">{es.views.noDecisions}</p> : null}
+      <ul className="space-y-1">
+        {recent.map((d) => (
+          <li key={d.id} className={`${card} text-sm`}>
+            <strong>{es.decisions.kinds[d.kind]}:</strong> {d.text}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** Vistas por responsabilidad Scrum (Scrum Master, Product Owner y Developers); visibles para todo el equipo. */
 export function ViewsPage() {
   const { project } = useProject();
@@ -310,6 +337,7 @@ export function ViewsPage() {
       {active === 'scrum-master' ? <ScrumMasterPanel projectId={project.id} /> : null}
       {active === 'product-owner' ? <ProductOwnerPanel projectId={project.id} /> : null}
       {active === 'developers' ? <DevelopersPanel projectId={project.id} /> : null}
+      {active !== 'scrum-master' ? <SharedDecisions projectId={project.id} /> : null}
     </section>
   );
 }

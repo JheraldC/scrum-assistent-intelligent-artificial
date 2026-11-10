@@ -7,8 +7,10 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    port: 5173,
-    proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: false } },
+    // WEB_PORT / API_PORT permiten levantar una segunda instancia (p. ej. las pruebas e2e) sin tocar la de desarrollo.
+    port: Number(process.env.WEB_PORT ?? 5173),
+    strictPort: true,
+    proxy: { '/api': { target: `http://localhost:${process.env.API_PORT ?? 3000}`, changeOrigin: false } },
   },
   build: { outDir: 'dist', sourcemap: true },
   test: { environment: 'jsdom', include: ['tests/**/*.test.{ts,tsx}'] },

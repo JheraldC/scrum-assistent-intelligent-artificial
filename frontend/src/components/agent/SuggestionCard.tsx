@@ -14,6 +14,11 @@ interface Props {
 
 type Mode = 'idle' | 'confirm' | 'edit';
 
+const shown = (v: string | string[]) => {
+  const text = Array.isArray(v) ? v.map((x) => `• ${x}`).join('\n') : v;
+  return text.trim() === '' ? es.panel.empty : text;
+};
+
 const selectClass = 'mt-1 block w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base';
 
 /**
@@ -28,6 +33,8 @@ export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
   const [soThat, setSoThat] = useState(suggestion.soThat ?? '');
   const [criteria, setCriteria] = useState(suggestion.acceptanceCriteria.join('\n'));
   const [itemId, setItemId] = useState(suggestion.itemId ?? '');
+  const change = suggestion.change;
+  const [value, setValue] = useState(change ? (Array.isArray(change.proposedValue) ? change.proposedValue.join('\n') : change.proposedValue) : '');
   const [items, setItems] = useState<BacklogItem[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +61,7 @@ export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
       ...(kind === 'STORY' ? { asA, iWant, soThat } : {}),
       ...(kind === 'STORY' || kind === 'ACCEPTANCE_CRITERIA' ? { acceptanceCriteria: lines } : {}),
       ...(needsItem && itemId ? { itemId } : {}),
+      ...(kind === 'FIELD_CHANGE' && change ? { value: change.fieldKind === 'list' ? value.split('\n').map((l) => l.trim()).filter(Boolean) : value.trim() } : {}),
     };
   }
 
@@ -76,12 +84,31 @@ export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
 
   return (
     <li data-suggestion={suggestion.id} data-kind={kind} className="rounded-md border border-[var(--color-ai)] bg-[var(--color-ai-bg)] p-2 text-sm text-[var(--color-ai)]">
+      {kind === 'FIELD_CHANGE' && change ? (
+        <div data-field-change={change.field}>
+          <p className="font-semibold">
+            {change.fieldLabel} <span className="font-normal text-xs">· {change.artifactLabel}</span>
+          </p>
+          <div className="mt-1 grid gap-2 text-[var(--color-text)]">
+            <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
+              <p className="text-xs font-medium">{es.panel.current}</p>
+              <p className="whitespace-pre-wrap">{shown(change.currentValue)}</p>
+            </div>
+            <div className="rounded-md border border-[var(--color-ai)] bg-[var(--color-surface)] p-2">
+              <p className="text-xs font-medium">{es.panel.proposedValue}</p>
+              <p className="whitespace-pre-wrap">{shown(change.proposedValue)}</p>
+            </div>
+          </div>
+          {change.rationale ? <p className="mt-1 text-xs">{change.rationale}</p> : null}
+        </div>
+      ) : (
       <p className="font-semibold">
         {es.panel.kinds[kind]}
         {suggestion.itemCode ? <span className="font-mono"> · {suggestion.itemCode}</span> : null}
       </p>
-      {suggestion.title && suggestion.title !== suggestion.text ? <p className="font-medium">{suggestion.title}</p> : null}
-      <p className="whitespace-pre-wrap">{suggestion.text}</p>
+      )}
+      {kind !== 'FIELD_CHANGE' && suggestion.title && suggestion.title !== suggestion.text ? <p className="font-medium">{suggestion.title}</p> : null}
+      {kind !== 'FIELD_CHANGE' ? <p className="whitespace-pre-wrap">{suggestion.text}</p> : null}
       {kind === 'STORY' ? (
         <p className="mt-1 text-xs">
           {suggestion.asA ? `Como ${suggestion.asA}, ` : ''}
@@ -89,7 +116,7 @@ export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
           {suggestion.soThat ? `, para ${suggestion.soThat}` : ''}
         </p>
       ) : null}
-      {suggestion.acceptanceCriteria.length > 0 ? (
+      {kind !== 'FIELD_CHANGE' && suggestion.acceptanceCriteria.length > 0 ? (
         <ul className="mt-1 list-disc pl-5 text-xs">
           {suggestion.acceptanceCriteria.map((c, i) => (
             <li key={i}>{c}</li>
@@ -97,7 +124,7 @@ export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
         </ul>
       ) : null}
 
-      <p className="mt-2 text-xs">
+      <p className="mt-2 text-xs" hidden={kind === 'FIELD_CHANGE'}>
         <strong>{es.panel.sources}:</strong>{' '}
         {suggestion.basis === 'DOCUMENTO'
           ? suggestion.sources.map((s) => `«${s.document}»${s.section ? `, ${s.section}` : ''}`).join('; ')
@@ -114,6 +141,16 @@ export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
 
       {mode === 'edit' ? (
         <div className="mt-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-text)]">
+          {kind === 'FIELD_CHANGE' && change ? (
+            <FormField
+              multiline
+              rows={change.fieldKind === 'list' ? 4 : 3}
+              label={change.fieldKind === 'list' ? `${es.panel.fieldValue} · ${es.panel.fieldCriteria}` : es.panel.fieldValue}
+              name={`v-${suggestion.id}`}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+          ) : null}
           {kind === 'STORY' || kind === 'TASK' ? <FormField label={es.panel.fieldTitle} name={`t-${suggestion.id}`} value={title} onChange={(e) => setTitle(e.target.value)} /> : null}
           {kind === 'STORY' ? (
             <>

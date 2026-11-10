@@ -623,6 +623,25 @@ paths:
         '200': { description: Archivo, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
 
   # --- Sugerencias de la IA (propuestas revisables) --------------------------------------------
+  /projects/{projectId}/agent/recommend:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    post:
+      tags: [Agente IA]
+      summary: Recomendación de IA campo por campo sobre un artefacto editable. Solo genera propuestas pendientes; nada se aplica solo.
+      description: |
+        Para cada campo editable devuelve un estado explícito: CHANGE (con valor propuesto), NO_CHANGE, UNSURE o NO_RESPONSE
+        (el modelo no se pronunció). La base de cada campo la calcula el servidor: REGLAS solo si el criterio citado falló de
+        verdad en la última evaluación, DOCUMENTO solo con citas de fragmentos realmente enviados, INFERENCIA en otro caso.
+        Es una llamada a la IA (consume el presupuesto de uso); la evaluación por reglas (`POST /validations`) no llama a la IA.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [artifactType, artifactId], properties: { artifactType: { type: string, enum: [BACKLOG_ITEM, PROJECT, SPRINT, SPRINT_TASK, TRACKING, SPRINT_REVIEW, RETROSPECTIVE, RETRO_ACTION] }, artifactId: { type: string, format: uuid } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Recommendation' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
   /projects/{projectId}/agent/suggestions:
     parameters: [{ $ref: '#/components/parameters/projectId' }]
     get:
@@ -990,7 +1009,7 @@ components:
       required: [id, kind, status, actionable, effect, source, basis]
       properties:
         id: { type: string, format: uuid }
-        kind: { type: string, enum: [STORY, ACCEPTANCE_CRITERIA, TASK, RISK, DEPENDENCY, QUESTION] }
+        kind: { type: string, enum: [STORY, ACCEPTANCE_CRITERIA, TASK, FIELD_CHANGE, RISK, DEPENDENCY, QUESTION] }
         status: { type: string, enum: [PROPOSED, ACCEPTED, DISCARDED] }
         actionable: { type: boolean }
         title: { type: string }
@@ -999,6 +1018,38 @@ components:
         itemCode: { type: [string, 'null'] }
         itemId: { type: [string, 'null'], format: uuid }
         sources: { type: array, items: { type: object, properties: { document: { type: string }, section: { type: [string, 'null'] } } } }
-        basis: { type: string, enum: [DOCUMENTO, INFERENCIA], description: 'DOCUMENTO solo con una cita verificada contra lo enviado al modelo' }
+        basis: { type: string, enum: [REGLAS, DOCUMENTO, INFERENCIA], description: 'DOCUMENTO solo con una cita verificada contra lo enviado al modelo; REGLAS solo con criterios que fallaron de verdad' }
+        change: { type: [object, 'null'], description: 'Solo FIELD_CHANGE: campo del artefacto con su valor actual y el propuesto' }
         effect: { type: string, description: 'Qué cambiará si se acepta' }
         source: { const: AI_RECOMMENDATION }
+    Recommendation:
+      type: object
+      required: [interactionId, artifact, kind, fields, questions, contextUsed, providerNotice, disclaimer, source, model]
+      properties:
+        interactionId: { type: string, format: uuid }
+        artifact: { type: object, required: [type, id, label, editable, hasRules], properties: { type: { type: string }, id: { type: string, format: uuid }, label: { type: string }, version: { type: [integer, 'null'] }, editable: { type: boolean }, hasRules: { type: boolean } } }
+        kind: { type: string, enum: [RULES_AND_AI, AI_ONLY], description: 'AI_ONLY: análisis asesor de un artefacto sin reglas de validación' }
+        summary: { type: string }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [field, label, kind, status, currentValue, basis]
+            properties:
+              field: { type: string }
+              label: { type: string }
+              kind: { type: string, enum: [text, list] }
+              status: { type: string, enum: [CHANGE, NO_CHANGE, UNSURE, NO_RESPONSE] }
+              currentValue: { oneOf: [{ type: string }, { type: array, items: { type: string } }] }
+              proposedValue: { oneOf: [{ type: string }, { type: array, items: { type: string } }, { type: 'null' }] }
+              rationale: { type: string }
+              basis: { type: string, enum: [REGLAS, DOCUMENTO, INFERENCIA] }
+              criterionIds: { type: array, items: { type: string } }
+              sources: { type: array, items: { type: object } }
+              suggestion: { oneOf: [{ $ref: '#/components/schemas/AiSuggestion' }, { type: 'null' }] }
+        questions: { type: array, items: { type: string } }
+        contextUsed: { type: object }
+        providerNotice: { type: string }
+        disclaimer: { type: string }
+        source: { const: AI_RECOMMENDATION }
+        model: { type: string }

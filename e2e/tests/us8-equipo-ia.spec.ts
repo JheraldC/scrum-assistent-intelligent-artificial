@@ -66,11 +66,13 @@ test.describe('US8: equipo Scrum, documentación y asistente lateral', () => {
   test('propuestas de la IA: se revisan, se aceptan con confirmación y se descartan; la IA no aprueba compuertas @movil', async ({ page, isMobile }) => {
     await nuevoProyecto(page, 'Propuestas IA');
     await crearHistoria(page);
-    if (isMobile) await page.getByRole('button', { name: 'Abrir asistente' }).click();
+    // Evaluar abre el panel por sí solo (en móvil, el cajón); si no está abierto, se abre con el botón.
+    if (isMobile && !(await PANEL(page).isVisible())) await page.getByRole('button', { name: 'Abrir asistente' }).click();
 
     await preguntar(page, 'PROPUESTA-IA-SIMULADA ¿Qué propones?');
     await expect(page.locator('[data-ai-reply]').first()).toBeVisible();
-    await expect(PANEL(page).getByText('Propuestas para revisar')).toBeVisible();
+    await expect(PANEL(page).getByText(/Cambios propuestos \(modifican un campo\)/)).toBeVisible();
+    await expect(PANEL(page).getByText(/Solo informativas \(no modifican nada\)/)).toBeVisible();
     const historia = PANEL(page).locator('[data-kind="STORY"]');
     await expect(historia).toContainText('Consultar el resumen semanal de asistencia');
     await expect(historia).toContainText('Inferencia de la IA');
@@ -188,7 +190,7 @@ test.describe('US8: equipo Scrum, documentación y asistente lateral', () => {
     await expect(sm).toContainText('Asuntos que requieren atención');
     await expect(sm).toContainText('La Daily será a las 9:00');
     await page.getByRole('button', { name: 'Pedir preguntas de facilitación a la IA' }).click();
-    await expect(page.getByLabel('Pregunta al asistente')).toHaveValue(/preguntas de facilitación/);
+    await expect(PANEL(page).getByText(/Sugiere 3 preguntas de facilitación/)).toBeVisible(); // se envía sola
 
     // Planificar (las tareas son opcionales) y desglosar en una tarea.
     await page.getByRole('link', { name: 'Flujo' }).click();

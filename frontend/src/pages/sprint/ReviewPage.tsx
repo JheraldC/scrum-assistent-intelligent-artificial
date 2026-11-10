@@ -3,8 +3,8 @@ import { GOAL_ASSESSMENTS } from '@scrum/shared';
 import { api, ApiError } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { SprintReview, ValidationRun } from '../../api/types';
-import { useCatalogTitles } from '../../api/useCatalogTitles';
-import { useAssistantFocus } from '../../components/agent/AssistantContext';
+import { EvaluationSummary, RecommendButton } from '../../components/agent/AiActions';
+import { useAssistant, useAssistantChanges, useAssistantFocus } from '../../components/agent/AssistantContext';
 import { CeremonyHelp } from '../../components/team/CeremonyHelp';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -13,7 +13,6 @@ import { FormField } from '../../components/ui/FormField';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { Toast } from '../../components/ui/Toast';
 import { VersionConflictDialog } from '../../components/ui/VersionConflictDialog';
-import { GateResultPanel } from '../../components/validation/GateResultPanel';
 import { GateStateBadge } from '../../components/validation/GateStateBadge';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
@@ -24,7 +23,8 @@ type Assessment = SprintReview['goalAssessment'];
 export function ReviewPage() {
   const { project, reload: reloadProject } = useProject();
   const sprint = project.openSprint;
-  const titles = useCatalogTitles();
+  const { reportEvaluation } = useAssistant();
+  const changes = useAssistantChanges();
 
   const [review, setReview] = useState<SprintReview | null>(null);
   const [results, setResults] = useState('');
@@ -77,6 +77,12 @@ export function ReviewPage() {
       .finally(() => setLoading(false));
   }, [sprint?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Tras aplicar una propuesta de la IA, el formulario muestra la versión guardada.
+  useEffect(() => {
+    if (changes > 0) void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changes]);
+
   if (loading) return <LoadingSkeleton />;
   if (!sprint) return <EmptyState title={es.review.noSprint} />;
   if (!review) return failure ? <ErrorBanner message={failure.message} /> : <LoadingSkeleton />;
@@ -125,6 +131,7 @@ export function ReviewPage() {
     );
     if (result) {
       setRun(result);
+      reportEvaluation(result, `Review del Sprint ${sprint!.number}`, { artifactType: 'SPRINT_REVIEW', artifactId: sprint!.id, label: `Review del Sprint ${sprint!.number}` });
       await load(true);
       reloadProject();
     }
@@ -212,13 +219,14 @@ export function ReviewPage() {
         <Button variant="secondary" disabled={busy !== null || dirty} onClick={() => void onEvaluate()}>
           {busy === 'evaluate' ? es.review.evaluating : es.review.evaluate}
         </Button>
+        <RecommendButton artifact={{ artifactType: 'SPRINT_REVIEW', artifactId: sprint.id, label: `Review del Sprint ${sprint.number}` }} disabled={dirty} />
         <Button variant="secondary" disabled={busy !== null || dirty || reviewStage?.status === 'VALIDATED' || reviewStage?.status === 'PENDING'} onClick={() => void onComplete()}>
           {busy === 'complete' ? es.review.completing : es.review.complete}
         </Button>
       </div>
       {dirty ? <p className="mt-2 text-sm text-[var(--color-muted)]">{es.review.unsaved}</p> : null}
 
-      {run ? <GateResultPanel run={run} titles={titles} projectId={project.id} onRunUpdated={setRun} /> : null}
+      {run ? <EvaluationSummary run={run} label={`Review del Sprint ${sprint.number}`} artifact={{ artifactType: 'SPRINT_REVIEW', artifactId: sprint.id, label: `Review del Sprint ${sprint.number}` }} /> : null}
       {notice ? <Toast message={notice} onClose={() => setNotice(null)} /> : null}
     </section>
   );

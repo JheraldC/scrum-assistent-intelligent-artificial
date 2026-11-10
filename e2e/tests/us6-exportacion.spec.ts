@@ -47,7 +47,7 @@ test.describe('US6: exportación de datos', () => {
     expect(csv).not.toContain(email);
 
     // Un Participante no ve el panel de exportación.
-    const contextoB = await browser.newContext({ baseURL: 'http://localhost:5173' });
+    const contextoB = await browser.newContext({ baseURL: process.env.E2E_BASE_URL });
     const paginaB = await contextoB.newPage();
     const emailBeto = await register(paginaB);
     await page.getByRole('link', { name: 'Participantes' }).click();

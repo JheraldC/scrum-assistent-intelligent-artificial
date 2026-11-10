@@ -3,15 +3,14 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { BacklogItem, ValidationRun } from '../../api/types';
-import { useCatalogTitles } from '../../api/useCatalogTitles';
-import { useAssistantFocus } from '../../components/agent/AssistantContext';
+import { EvaluationSummary, RecommendButton } from '../../components/agent/AiActions';
+import { useAssistant, useAssistantChanges, useAssistantFocus } from '../../components/agent/AssistantContext';
 import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { FormField } from '../../components/ui/FormField';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { Toast } from '../../components/ui/Toast';
 import { VersionConflictDialog } from '../../components/ui/VersionConflictDialog';
-import { GateResultPanel } from '../../components/validation/GateResultPanel';
 import { GateStateBadge } from '../../components/validation/GateStateBadge';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
@@ -63,7 +62,8 @@ export function BacklogItemPage() {
   const { itemId } = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
-  const titles = useCatalogTitles();
+  const { reportEvaluation } = useAssistant();
+  const changes = useAssistantChanges();
   const creating = !itemId;
   const base = `/proyectos/${project.id}/backlog`;
 
@@ -97,7 +97,7 @@ export function BacklogItemPage() {
       .then(load)
       .catch((error: unknown) => setFailure(toFormFailure(error)))
       .finally(() => setLoading(false));
-  }, [creating, itemId, project.id]);
+  }, [creating, itemId, project.id, changes]);
 
   const set = <K extends keyof FormValues>(key: K) => (value: FormValues[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
@@ -139,6 +139,7 @@ export function BacklogItemPage() {
         body: { gateId: 'GATE-STORY', targetType: 'BACKLOG_ITEM', targetId: item.id },
       });
       setRun(result);
+      reportEvaluation(result, `${item.code} · ${item.title}`, { artifactType: 'BACKLOG_ITEM', artifactId: item.id, label: `${item.code} · ${item.title}` });
       setItem(await api<BacklogItem>(`/projects/${project.id}/backlog/${item.id}`));
     } catch (error) {
       setFailure(toFormFailure(error));
@@ -220,6 +221,9 @@ export function BacklogItemPage() {
               {evaluating ? es.backlog.evaluating : es.backlog.evaluate}
             </Button>
           ) : null}
+          {!creating && item ? (
+            <RecommendButton artifact={{ artifactType: 'BACKLOG_ITEM', artifactId: item.id, label: `${item.code} · ${item.title}` }} disabled={dirty} />
+          ) : null}
           <Button variant="secondary" onClick={() => navigate(base)}>
             {es.common.cancel}
           </Button>
@@ -227,7 +231,7 @@ export function BacklogItemPage() {
         {!creating && dirty ? <p className="mt-2 text-sm text-[var(--color-muted)]">Guarde los cambios antes de evaluar.</p> : null}
       </form>
 
-      {run ? <GateResultPanel run={run} titles={titles} projectId={project.id} onRunUpdated={setRun} /> : null}
+      {run && item ? <EvaluationSummary run={run} label={`${item.code} · ${item.title}`} artifact={{ artifactType: 'BACKLOG_ITEM', artifactId: item.id, label: `${item.code} · ${item.title}` }} /> : null}
       {saved ? <Toast message={es.backlog.saved} onClose={() => setSaved(false)} /> : null}
     </section>
   );

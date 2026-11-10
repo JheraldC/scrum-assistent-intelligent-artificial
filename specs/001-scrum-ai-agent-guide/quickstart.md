@@ -49,6 +49,7 @@ npm run dev
 
 - `db:seed` crea solo el **proyecto de ejemplo** (`is_sample`) y cuentas de demostración (solo en desarrollo).
 - Interfaz: `http://localhost:5173` (Vite con proxy a `/api`); API: `http://localhost:3000/api/v1`.
+- Las pruebas e2e levantan **otra instancia** en los puertos `5273` (web) y `3100` (API), con IA simulada y la base de pruebas; no tocan la de desarrollo.
 - Comprobación: `GET http://localhost:3000/api/v1/health` responde `{"status":"ok"}`.
 
 ## 4. Pruebas
@@ -109,3 +110,12 @@ experimento. Registrar la fecha de la prueba de restauración.
 - Contratos: [contracts/openapi.yaml](contracts/openapi.yaml), [contracts/export-format.md](contracts/export-format.md), [contracts/ai-response.schema.json](contracts/ai-response.schema.json).
 - Modelo de datos: [data-model.md](data-model.md). Criterios: [rules-catalog.md](rules-catalog.md).
 - Diagramas: carpeta [diagrams/](diagrams/).
+
+## Escenarios V11–V14 (panel del asistente, recomendaciones por campo)
+
+| # | Escenario | Resultado esperado | FR |
+|---|-----------|--------------------|----|
+| V11 | Crear una historia incompleta y pulsar **Evaluar historia** | El resultado por reglas aparece en el panel derecho (sin llamada a la IA) y bajo el formulario solo hay un indicador compacto | FR-050 |
+| V12 | Pulsar **Pedir recomendación de IA** | Se envía sola; el panel responde campo por campo, con «sin cambios», «sin certeza» o «el modelo no se pronunció» cuando corresponda, y la base de cada campo | FR-051 |
+| V13 | Revisar una propuesta: ver valor actual y propuesto, editarlo, confirmar | El campo cambia, la pantalla se actualiza, las reglas reevalúan y queda registrado quién lo aplicó y que el origen fue la IA | FR-052 |
+| V14 | Cambiar el artefacto en otra pestaña y luego aceptar la propuesta | Aviso de conflicto; no se sobrescribe nada | FR-052 |
