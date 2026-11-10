@@ -5,6 +5,7 @@ import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { SprintReview, ValidationRun } from '../../api/types';
 import { useCatalogTitles } from '../../api/useCatalogTitles';
 import { useAssistantFocus } from '../../components/agent/AssistantContext';
+import { CeremonyHelp } from '../../components/team/CeremonyHelp';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -147,6 +148,7 @@ export function ReviewPage() {
         {es.review.title} · {es.flow.sprintLabel} {sprint.number}
       </h2>
       <p className="mb-2 text-sm text-[var(--color-muted)]">{es.review.intro}</p>
+      <CeremonyHelp ceremony="REVIEW" />
       <p className="mb-2">
         <GateStateBadge state={review.gateState} />
       </p>

@@ -16,7 +16,7 @@ export function Layout() {
         {es.app.skipToContent}
       </a>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <nav aria-label={es.nav.main} className="mx-auto flex max-w-5xl flex-wrap items-center gap-4 px-4 py-3">
+        <nav aria-label={es.nav.main} className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-3">
           <Link to="/proyectos" className="text-lg font-semibold">
             {es.app.name}
           </Link>
@@ -48,7 +48,7 @@ export function Layout() {
           )}
         </nav>
       </header>
-      <main id="contenido" className="mx-auto max-w-5xl px-4 py-6">
+      <main id="contenido" className="mx-auto max-w-7xl px-4 py-6">
         <Outlet />
       </main>
     </>

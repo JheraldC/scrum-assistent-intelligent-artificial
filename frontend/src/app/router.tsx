@@ -17,6 +17,9 @@ import { ReviewPage } from '../pages/sprint/ReviewPage';
 import { TrackingPage } from '../pages/sprint/TrackingPage';
 import { PlanningPage } from '../pages/sprint/PlanningPage';
 import { ProjectsPage } from '../pages/projects/ProjectsPage';
+import { DecisionsPage } from '../pages/team/DecisionsPage';
+import { DocumentsPage } from '../pages/team/DocumentsPage';
+import { ViewsPage } from '../pages/team/ViewsPage';
 import { ValidationsPage } from '../pages/validations/ValidationsPage';
 
 // Las pantallas de cada historia se registran aquí (rutas de plan.md, "Diseño de interfaces").
@@ -44,6 +47,10 @@ export const router = createBrowserRouter([
               { path: 'sprint/seguimiento', element: <TrackingPage /> },
               { path: 'sprint/revision', element: <ReviewPage /> },
               { path: 'sprint/retrospectiva', element: <RetrospectivePage /> },
+              { path: 'vistas', element: <ViewsPage /> },
+              { path: 'vistas/:rol', element: <ViewsPage /> },
+              { path: 'decisiones', element: <DecisionsPage /> },
+              { path: 'documentos', element: <DocumentsPage /> },
               { path: 'validaciones', element: <ValidationsPage /> },
               { path: 'participantes', element: <MembersPage /> },
               { path: 'historial', element: <HistoryPage /> },

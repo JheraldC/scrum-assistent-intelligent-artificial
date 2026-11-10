@@ -4,6 +4,7 @@ import { api } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { TrackingEntry, TrackingKind } from '../../api/types';
 import { useResource } from '../../api/useResource';
+import { CeremonyHelp } from '../../components/team/CeremonyHelp';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -84,6 +85,7 @@ export function TrackingPage() {
         {es.tracking.title} · {es.flow.sprintLabel} {sprint.number}
       </h2>
       <p className="mb-2 text-sm text-[var(--color-muted)]">{es.tracking.intro}</p>
+      <CeremonyHelp ceremony="DAILY" />
       {!planningValidated ? <p className="mb-3 rounded-md border border-[var(--color-warning)] bg-[var(--color-warning-bg)] p-3">{es.tracking.needsPlanning}</p> : null}
       {error ? <ErrorBanner message={error.message} onRetry={reload} /> : null}
       {failure && Object.keys(failure.fields).length === 0 ? <ErrorBanner message={failure.message} /> : null}

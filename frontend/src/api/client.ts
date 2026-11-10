@@ -77,6 +77,23 @@ export async function api<T = unknown>(path: string, options: RequestOptions = {
   return (contentType.includes('json') ? await res.json() : await res.text()) as T;
 }
 
+/** Sube un archivo (multipart/form-data) con el token CSRF; el navegador fija el límite del cuerpo. */
+export async function apiUpload<T = unknown>(path: string, form: FormData): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'X-CSRF-Token': await ensureCsrf() },
+      credentials: 'include',
+      body: form,
+    });
+  } catch {
+    throw new ApiError(0, null, es.errors.network);
+  }
+  if (!res.ok) throw await toError(res);
+  return (await res.json()) as T;
+}
+
 /** Descarga un archivo del servidor (exportaciones) con la sesión actual y lo guarda en el equipo. */
 export async function downloadFile(path: string): Promise<string> {
   let res: Response;
@@ -87,7 +104,8 @@ export async function downloadFile(path: string): Promise<string> {
   }
   if (!res.ok) throw await toError(res);
   const disposition = res.headers.get('content-disposition') ?? '';
-  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'exportacion';
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  const filename = (encoded ? decodeURIComponent(encoded) : /filename="([^"]+)"/.exec(disposition)?.[1]) ?? 'exportacion';
   const url = URL.createObjectURL(await res.blob());
   const link = document.createElement('a');
   link.href = url;

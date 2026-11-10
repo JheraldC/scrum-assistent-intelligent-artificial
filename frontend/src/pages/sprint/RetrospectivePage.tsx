@@ -5,6 +5,7 @@ import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { Member, RetroAction, Retrospective, ValidationRun } from '../../api/types';
 import { useCatalogTitles } from '../../api/useCatalogTitles';
 import { useAssistantFocus } from '../../components/agent/AssistantContext';
+import { CeremonyHelp } from '../../components/team/CeremonyHelp';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -329,6 +330,7 @@ export function RetrospectivePage() {
         {es.retro.title} · {es.flow.sprintLabel} {sprint.number}
       </h2>
       <p className="mb-2 text-sm text-[var(--color-muted)]">{es.retro.intro}</p>
+      <CeremonyHelp ceremony="RETROSPECTIVE" />
       <p className="mb-2">
         <GateStateBadge state={gateState} />
       </p>

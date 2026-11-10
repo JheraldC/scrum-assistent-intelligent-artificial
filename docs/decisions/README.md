@@ -20,6 +20,8 @@ Las decisiones de diseño previas a la implementación están en
 
 ## Decisiones tomadas durante la implementación
 
+- **0002 – Equipo, documentación y sugerencias de IA**: ver [0002](0002-equipo-documentacion-y-sugerencias-de-ia.md).
+
 - **0001 – Versiones fijas**: Prisma 7.10.1 (la etiqueta `latest` de npm apunta a una versión
   candidata 8.0.0-rc, que no se usa en el prototipo) con el adaptador `@prisma/adapter-pg`; ESLint 9
   (`eslint-plugin-jsx-a11y` aún no declara compatibilidad con ESLint 10).

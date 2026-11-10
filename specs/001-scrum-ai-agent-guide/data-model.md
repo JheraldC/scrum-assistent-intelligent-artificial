@@ -358,3 +358,18 @@ caída de la IA **no** afecta este estado.
 | Excepción manual | `gate_exception` |
 | Interacción del agente | `agent_interaction` |
 | Exportación | Sin tabla (se genera bajo demanda; se registra en `activity_log`) |
+
+## Mejora 2026-11: entidades añadidas
+
+Migración `20261110061047_responsabilidades_documentos_tareas_sugerencias` (aditiva; valores por defecto compatibles con los datos existentes).
+
+| Entidad | Campos clave | Notas |
+|---------|--------------|-------|
+| `project.definition_of_done` | texto ≤ 2 000, por defecto `''` | Definition of Done compartida (opcional) |
+| `project_member.responsibilities` | lista de `SCRUM_MASTER`, `PRODUCT_OWNER`, `DEVELOPER`, por defecto vacía | Independiente de `role` |
+| `sprint_task` | `sprint_id`, `backlog_item_id?`, `title` 1–200, `status` TODO/DOING/DONE, `assignee_id?`, `from_ai`, `version` | Opcional; control de versión |
+| `decision` | `project_id`, `kind` DECISION/AGREEMENT, `text` 1–1 000, `created_by`, `created_at` | Solo inserción |
+| `project_document` | `project_id`, `name` 1–120, `status` ACTIVE/OUTDATED, `include_in_context`, `current_version` | ≤ 30 por proyecto |
+| `project_document_version` | `document_id`, `version`, `file_name`, `mime_type`, `size_bytes` ≤ 2 MB, `data bytea`, `text_content?`, `uploaded_by` | `text_content` solo `.md`/`.txt` |
+| `evidence_attachment` | `evidence_id` (PK), `file_name`, `mime_type`, `size_bytes` ≤ 5 MB, `data bytea` | Una por evidencia, opcional |
+| `ai_suggestion` | `project_id`, `kind`, `payload`, `sources`, `target_version?`, `status` PROPOSED/ACCEPTED/DISCARDED, `resolved_by?`, `applied_entity?`, `applied_id?` | La IA solo escribe aquí |

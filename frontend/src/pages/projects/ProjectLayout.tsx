@@ -4,7 +4,7 @@ import { api } from '../../api/client';
 import type { ProjectDetail } from '../../api/types';
 import { useResource } from '../../api/useResource';
 import { AssistantProvider } from '../../components/agent/AssistantContext';
-import { AssistantPanel } from '../../components/agent/AssistantPanel';
+import { AssistantDock } from '../../components/agent/AssistantPanel';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { es } from '../../i18n/es';
@@ -39,6 +39,7 @@ export function ProjectLayout() {
   return (
     <ProjectContext.Provider value={{ project: data, reload }}>
       <AssistantProvider>
+        <AssistantDock projectId={data.id} onProjectChanged={reload}>
         <header className="mb-4">
           <h1 className="text-2xl font-semibold">{data.name}</h1>
           <p className="text-[var(--color-muted)]">{data.productGoal}</p>
@@ -58,6 +59,9 @@ export function ProjectLayout() {
           <NavLink end to={`/proyectos/${data.id}`} className={linkClass}>
             {es.nav.flow}
           </NavLink>
+          <NavLink to={`/proyectos/${data.id}/vistas`} className={linkClass}>
+            {es.nav.views}
+          </NavLink>
           <NavLink to={`/proyectos/${data.id}/backlog`} className={linkClass}>
             {es.nav.backlog}
           </NavLink>
@@ -76,6 +80,12 @@ export function ProjectLayout() {
         <NavLink to={`/proyectos/${data.id}/validaciones`} className={linkClass}>
             {es.nav.validations}
           </NavLink>
+          <NavLink to={`/proyectos/${data.id}/decisiones`} className={linkClass}>
+            {es.nav.decisions}
+          </NavLink>
+          <NavLink to={`/proyectos/${data.id}/documentos`} className={linkClass}>
+            {es.nav.documents}
+          </NavLink>
           <NavLink to={`/proyectos/${data.id}/participantes`} className={linkClass}>
             {es.nav.members}
           </NavLink>
@@ -89,7 +99,7 @@ export function ProjectLayout() {
           ) : null}
         </nav>
         <Outlet />
-        <AssistantPanel projectId={data.id} />
+        </AssistantDock>
       </AssistantProvider>
     </ProjectContext.Provider>
   );

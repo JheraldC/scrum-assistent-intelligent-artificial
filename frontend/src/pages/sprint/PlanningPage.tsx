@@ -4,6 +4,8 @@ import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { BacklogItem, Sprint, ValidationRun } from '../../api/types';
 import { useCatalogTitles } from '../../api/useCatalogTitles';
 import { useAssistantFocus } from '../../components/agent/AssistantContext';
+import { CeremonyHelp } from '../../components/team/CeremonyHelp';
+import { TasksPanel } from '../../components/team/TasksPanel';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -134,6 +136,11 @@ export function PlanningPage() {
         {es.planning.title} · {es.flow.sprintLabel} {sprint.number}
       </h2>
       <p className="mb-2 text-sm text-[var(--color-muted)]">{es.planning.intro}</p>
+      <details className="mb-3 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm">
+        <summary className="min-h-6 cursor-pointer font-medium">{es.planning.backlogsTitle}</summary>
+        <p className="mt-2">{es.planning.backlogsText}</p>
+      </details>
+      <CeremonyHelp ceremony="PLANNING" />
       <p className="mb-3 flex flex-wrap items-center gap-2">
         <GateStateBadge state={gateState} />
         {validated ? <span className="font-medium text-[var(--color-success)]">✓ {es.planning.validated}</span> : null}
@@ -249,6 +256,8 @@ export function PlanningPage() {
           }}
         />
       ) : null}
+
+      <TasksPanel projectId={project.id} sprintId={sprint.id} itemIds={sprint.itemIds} onChanged={reload} />
 
       {run ? <GateResultPanel run={run} titles={titles} projectId={project.id} onRunUpdated={setRun} /> : null}
       {run?.exception ? (

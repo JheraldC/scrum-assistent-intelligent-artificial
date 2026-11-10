@@ -1,9 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createProject, expectAccessible, register } from './helpers';
 
+/** En escritorio el panel lateral ya está abierto; en móvil se abre el cajón con el botón flotante. */
 async function abrirAsistente(page: Page) {
-  await page.getByRole('button', { name: 'Abrir asistente' }).click();
-  await expect(page.getByRole('complementary', { name: 'Asistente de Scrum' })).toBeVisible();
+  const panel = page.getByRole('complementary', { name: 'Asistente de Scrum' });
+  if (!(await panel.isVisible())) await page.getByRole('button', { name: 'Abrir asistente' }).click();
+  await expect(panel).toBeVisible();
 }
 
 async function preguntar(page: Page, texto: string) {
@@ -56,7 +58,7 @@ test.describe('US4: asistente conversacional con IA', () => {
     await expect(page.getByRole('alert').filter({ hasText: /tardó demasiado/i })).toBeVisible();
 
     // Las comprobaciones por reglas funcionan igual con la IA caída.
-    await page.getByRole('button', { name: 'Cerrar asistente' }).click();
+    await page.getByRole('button', { name: 'Contraer asistente' }).click();
     await page.getByRole('link', { name: 'Backlog' }).click();
     await page.getByRole('link', { name: 'Nueva historia' }).click();
     await page.getByLabel('Título').fill('Historia con IA caída');

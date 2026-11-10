@@ -410,3 +410,27 @@ Task: "GateResultPanel y SourceBadge en frontend/src/components/validation/"
 - Hacer commit tras cada tarea o grupo lógico (el commit lo decide el equipo)
 - Evitar tareas vagas, conflictos de archivo y dependencias entre historias que rompan su independencia
 - La spec tiene 40 requisitos funcionales (FR-001…FR-039 más FR-024a)
+
+
+---
+
+## Phase 11: Mejora 2026-11 — asistente práctico para todo el equipo Scrum
+
+**Purpose**: FR-040…FR-049. Estado real tras implementar; lo no marcado queda pendiente o limitado (ver abajo).
+
+- [X] T151 Migración `responsabilidades_documentos_tareas_sugerencias` (DoD, responsabilidades, `sprint_task`, `decision`, `project_document(_version)`, `evidence_attachment`, `ai_suggestion`) con restricciones CHECK; compatible con datos existentes
+- [X] T152 [P] Esquemas compartidos `shared/src/schemas/team.ts` y `definitionOfDone` opcional en el proyecto
+- [X] T153 Responsabilidades Scrum por proyecto (`PUT …/members/{userId}/responsibilities`, solo Facilitador) independientes de los permisos
+- [X] T154 Módulo `team`: tareas opcionales con control de versión, decisiones y acuerdos, y vistas Scrum Master / Product Owner / Developers con «asuntos que requieren atención» por reglas
+- [X] T155 Módulo `documents` y `platform/uploads.ts`: documentación opcional versionada, validación de tipo, tamaño y contenido, descarga segura, fragmentación y selección de fragmentos pertinentes
+- [X] T156 Adjuntos opcionales de evidencia (`…/evidence/file`, descarga solo para miembros)
+- [X] T157 Contexto ampliado de la IA (DoD, Sprint, backlog, tareas, decisiones, asuntos, documentos), prompts v2, citas verificadas, salida con `proposals`
+- [X] T158 Sugerencias revisables: `ai_suggestion`, aceptar (con confirmación y edición) / descartar, control de versión, reevaluación por reglas, registro de origen y autor
+- [X] T159 Frontend: panel lateral persistente (contraíble, redimensionable con teclado) y cajón móvil; tarjetas de propuesta; contexto y citas visibles; aviso del proveedor externo
+- [X] T160 Frontend: vistas por rol, Definition of Done en ajustes, responsabilidades en Participantes, tareas opcionales en Planificación, decisiones, documentación, adjuntos en evidencias y ayudas de ceremonias
+- [X] T161 Pruebas: unitarias (secciones, subidas, contexto, salida), integración (`team`, `documents`, `evidence-files`, `agent-suggestions`, aislamiento y contrato OpenAPI ampliados) y e2e `us8-equipo-ia` (escritorio y móvil)
+- [X] T162 Documentación: README, OpenAPI, spec (FR-040…FR-049), data-model, ADR 0002 y `docs/deploy.md`
+- [ ] T163 Extraer texto de PDF para usarlo como contexto de IA (hoy los PDF solo se guardan como referencia) — requiere decidir una dependencia
+- [ ] T164 Permitir que el Product Owner (responsabilidad, no permiso) edite el Product Goal / DoD y suba documentos — hoy solo el Facilitador; requiere decidir si una responsabilidad puede conceder permisos
+- [ ] T165 Almacenamiento de archivos fuera de la base de datos (objetos/disco persistente) si el volumen crece; hoy `bytea` en PostgreSQL (≈ 5 MB por adjunto, 2 MB por documento)
+- [ ] T166 Verificar el panel lateral y las propuestas con el proveedor de IA real (T108) y calibrar la calidad de las propuestas y de las citas

@@ -27,6 +27,8 @@ tags:
   - name: Validación
   - name: Agente IA
   - name: Actividad y exportación
+  - name: Equipo Scrum
+  - name: Documentación
 paths:
   /health:
     get:
@@ -464,6 +466,189 @@ paths:
         '403': { $ref: '#/components/responses/Problem' }
         '409': { description: 'Sin datos exportables (proyecto vacío o solo de ejemplo sin includeSample)', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
 
+  # --- Equipo Scrum: responsabilidades, vistas, tareas y decisiones -----------------------------
+  /projects/{projectId}/members/{userId}/responsibilities:
+    parameters: [{ $ref: '#/components/parameters/projectId' }, { name: userId, in: path, required: true, schema: { type: string, format: uuid } }]
+    put:
+      tags: [Equipo Scrum]
+      summary: Responsabilidades Scrum de una persona en este proyecto (solo Facilitador). Independientes de los permisos técnicos.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [responsibilities], properties: { responsibilities: { type: array, uniqueItems: true, items: { type: string, enum: [SCRUM_MASTER, PRODUCT_OWNER, DEVELOPER] } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Member' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/views/scrum-master:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Equipo Scrum]
+      summary: Vista del Scrum Master (solo lectura, visible para todo el equipo). No puntúa ni vigila a personas.
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object } } } }
+  /projects/{projectId}/views/product-owner:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Equipo Scrum]
+      summary: Vista del Product Owner (Product Goal, DoD, backlog ordenado, elementos por aclarar, comentarios de la Review)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object } } } }
+  /projects/{projectId}/views/developers:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Equipo Scrum]
+      summary: Vista de los Developers (Sprint Goal, elementos seleccionados, tareas opcionales, impedimentos)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object } } } }
+  /projects/{projectId}/sprints/{sprintId}/tasks:
+    parameters: [{ $ref: '#/components/parameters/projectId' }, { $ref: '#/components/parameters/sprintId' }]
+    get:
+      tags: [Equipo Scrum]
+      summary: Tareas opcionales del Sprint
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SprintTask' } } } } }
+    post:
+      tags: [Equipo Scrum]
+      summary: Crear una tarea (opcional). La asignación a una persona también es opcional.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string, minLength: 1, maxLength: 200 }, backlogItemId: { type: [string, 'null'], format: uuid }, assigneeId: { type: [string, 'null'], format: uuid }, status: { type: string, enum: [TODO, DOING, DONE] } } } } }
+      responses:
+        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/SprintTask' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/sprints/{sprintId}/tasks/{taskId}:
+    parameters: [{ $ref: '#/components/parameters/projectId' }, { $ref: '#/components/parameters/sprintId' }, { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      tags: [Equipo Scrum]
+      summary: Actualizar una tarea con control de versión
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [expectedVersion], properties: { title: { type: string }, status: { type: string, enum: [TODO, DOING, DONE] }, backlogItemId: { type: [string, 'null'], format: uuid }, assigneeId: { type: [string, 'null'], format: uuid }, expectedVersion: { type: integer, minimum: 1 } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/SprintTask' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Equipo Scrum]
+      summary: Quitar una tarea
+      responses:
+        '204': { description: Eliminada }
+  /projects/{projectId}/decisions:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Equipo Scrum]
+      summary: Decisiones y acuerdos del proyecto (más recientes primero)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Decision' } } } } }
+    post:
+      tags: [Equipo Scrum]
+      summary: Registrar una decisión o acuerdo (solo inserción; texto, fecha del servidor y autor)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [kind, text], properties: { kind: { type: string, enum: [DECISION, AGREEMENT] }, text: { type: string, minLength: 1, maxLength: 1000 } } } } }
+      responses:
+        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/Decision' } } } }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  # --- Documentación permanente (opcional) ----------------------------------------------------
+  /projects/{projectId}/documents:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Documentación]
+      summary: Documentos del proyecto (no son evidencia de etapas)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ProjectDocument' } } } } }
+    post:
+      tags: [Documentación]
+      summary: Subir un documento (solo Facilitador). multipart/form-data con `file` (.md, .txt, .pdf; máx. 2 MB) y `name` opcional.
+      requestBody:
+        required: true
+        content: { multipart/form-data: { schema: { type: object, required: [file], properties: { name: { type: string }, file: { type: string, format: binary } } } } }
+      responses:
+        '201': { description: Creado, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectDocument' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/documents/{documentId}:
+    parameters: [{ $ref: '#/components/parameters/projectId' }, { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      tags: [Documentación]
+      summary: Renombrar, marcar como desactualizado o incluir/excluir del contexto de IA (solo Facilitador)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { name: { type: string }, status: { type: string, enum: [ACTIVE, OUTDATED] }, includeInContext: { type: boolean } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectDocument' } } } }
+  /projects/{projectId}/documents/{documentId}/versions:
+    parameters: [{ $ref: '#/components/parameters/projectId' }, { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      tags: [Documentación]
+      summary: Versiones del documento
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    post:
+      tags: [Documentación]
+      summary: Reemplazar el contenido creando una versión nueva (solo Facilitador)
+      requestBody:
+        required: true
+        content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } }
+      responses:
+        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectDocument' } } } }
+  /projects/{projectId}/documents/{documentId}/file:
+    parameters: [{ $ref: '#/components/parameters/projectId' }, { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      tags: [Documentación]
+      summary: Descargar la versión vigente (o `?version=n`). Siempre como adjunto, con tipo fijo y `nosniff`.
+      parameters: [{ name: version, in: query, schema: { type: integer, minimum: 1 } }]
+      responses:
+        '200': { description: Archivo, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+  /projects/{projectId}/sprints/{sprintId}/stages/{stageType}/evidence/file:
+    parameters: [{ $ref: '#/components/parameters/projectId' }, { $ref: '#/components/parameters/sprintId' }, { name: stageType, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Artefactos del Sprint]
+      summary: Registrar evidencia con un archivo adjunto opcional (.md, .txt, .pdf, .png, .jpg; máx. 5 MB). La aplicación NO verifica su contenido.
+      requestBody:
+        required: true
+        content: { multipart/form-data: { schema: { type: object, required: [file], properties: { note: { type: string, maxLength: 2000 }, file: { type: string, format: binary } } } } }
+      responses:
+        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/Evidence' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /projects/{projectId}/sprints/{sprintId}/stages/{stageType}/evidence/{evidenceId}/file:
+    parameters: [{ $ref: '#/components/parameters/projectId' }, { $ref: '#/components/parameters/sprintId' }, { name: stageType, in: path, required: true, schema: { type: string } }, { name: evidenceId, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      tags: [Artefactos del Sprint]
+      summary: Descargar el archivo adjunto de una evidencia (solo miembros)
+      responses:
+        '200': { description: Archivo, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+
+  # --- Sugerencias de la IA (propuestas revisables) --------------------------------------------
+  /projects/{projectId}/agent/suggestions:
+    parameters: [{ $ref: '#/components/parameters/projectId' }]
+    get:
+      tags: [Agente IA]
+      summary: Propuestas de la IA (por defecto todas; `?status=PROPOSED` solo las pendientes)
+      parameters: [{ name: status, in: query, schema: { type: string, enum: [PROPOSED, ACCEPTED, DISCARDED] } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AiSuggestion' } } } } }
+  /projects/{projectId}/agent/suggestions/{suggestionId}/resolve:
+    parameters: [{ $ref: '#/components/parameters/projectId' }, { name: suggestionId, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      tags: [Agente IA]
+      summary: Aceptar (con confirmación y edición opcional) o descartar una propuesta. Solo esta acción explícita puede cambiar un artefacto; usa el control de versión y reevalúa con las reglas (la IA no aprueba compuertas).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { type: object, required: [action, confirm], properties: { action: { const: ACCEPT }, confirm: { const: true }, edit: { type: object, description: 'title, text, asA, iWant, soThat, acceptanceCriteria, itemId' } } }
+                - { type: object, required: [action], properties: { action: { const: DISCARD } } }
+      responses:
+        '200': { description: Resuelta, content: { application/json: { schema: { type: object } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     sessionCookie: { type: apiKey, in: cookie, name: sid }
@@ -511,6 +696,7 @@ components:
         name: { type: string, minLength: 3, maxLength: 100 }
         description: { type: string, maxLength: 1000 }
         productGoal: { type: string, minLength: 1, maxLength: 500 }
+        definitionOfDone: { type: string, maxLength: 2000, description: 'Definition of Done compartida; opcional (vacía en proyectos existentes)' }
     Project:
       allOf:
         - $ref: '#/components/schemas/ProjectInput'
@@ -596,7 +782,7 @@ components:
     Evidence:
       type: object
       required: [id, content, createdAt]
-      properties: { id: { type: string, format: uuid }, content: { type: string }, authorPseudonym: { type: string }, createdAt: { type: string, format: date-time } }
+      properties: { id: { type: string, format: uuid }, content: { type: string }, authorPseudonym: { type: string }, createdAt: { type: string, format: date-time }, stageType: { type: string }, attachment: { type: [object, 'null'], description: 'Archivo adjunto opcional; la aplicación no verifica su contenido', properties: { fileName: { type: string }, mimeType: { type: string }, sizeBytes: { type: integer } } } }
     TrackingEntry:
       type: object
       required: [id, kind, content, createdAt]
@@ -724,6 +910,11 @@ components:
         answer: { type: string, description: Texto plano (la interfaz lo escapa; nunca HTML) }
         suggestions: { type: array, items: { type: object, properties: { target: { type: string }, text: { type: string } } } }
         referencedCriteria: { type: array, items: { type: string } }
+        proposals: { type: array, items: { $ref: '#/components/schemas/AiSuggestion' }, description: 'Propuestas revisables: nada cambia hasta que una persona las acepta' }
+        basis: { type: string, enum: [DOCUMENTO, INFERENCIA] }
+        sources: { type: array, items: { type: object, properties: { document: { type: string }, section: { type: [string, 'null'] } } }, description: 'Citas verificadas contra los fragmentos enviados al modelo' }
+        contextUsed: { type: object, description: 'Qué datos del proyecto y qué documentos se enviaron al proveedor de IA' }
+        providerNotice: { type: string }
         disclaimer: { type: string, description: Aviso de que la recomendación no está garantizada }
         source: { type: string, enum: [AI_RECOMMENDATION] }
         model: { type: string }
@@ -750,3 +941,64 @@ components:
         entityId: { type: [string, 'null'], format: uuid }
         actorPseudonym: { type: [string, 'null'] }
         occurredAt: { type: string, format: date-time }
+    SprintTask:
+      type: object
+      required: [id, title, status, version, fromAi]
+      properties:
+        id: { type: string, format: uuid }
+        sprintId: { type: string, format: uuid }
+        backlogItemId: { type: [string, 'null'], format: uuid }
+        itemCode: { type: [string, 'null'] }
+        itemTitle: { type: [string, 'null'] }
+        title: { type: string }
+        status: { type: string, enum: [TODO, DOING, DONE] }
+        assigneeId: { type: [string, 'null'], format: uuid }
+        assigneePseudonym: { type: [string, 'null'] }
+        fromAi: { type: boolean, description: 'true si nació de una sugerencia de IA aceptada por una persona' }
+        version: { type: integer }
+    Decision:
+      type: object
+      required: [id, kind, text, authorPseudonym, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [DECISION, AGREEMENT] }
+        text: { type: string }
+        authorPseudonym: { type: string }
+        createdAt: { type: string, format: date-time }
+    ProjectDocument:
+      type: object
+      required: [id, name, status, includeInContext, currentVersion, current]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [ACTIVE, OUTDATED] }
+        includeInContext: { type: boolean }
+        currentVersion: { type: integer }
+        updatedAt: { type: string, format: date-time }
+        current:
+          type: object
+          properties:
+            version: { type: integer }
+            fileName: { type: string }
+            mimeType: { type: string }
+            sizeBytes: { type: integer }
+            uploadedAt: { type: string, format: date-time }
+            uploadedByPseudonym: { type: string }
+            usableAsContext: { type: boolean, description: 'Solo .md y .txt; no se extrae texto de PDF' }
+    AiSuggestion:
+      type: object
+      required: [id, kind, status, actionable, effect, source, basis]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [STORY, ACCEPTANCE_CRITERIA, TASK, RISK, DEPENDENCY, QUESTION] }
+        status: { type: string, enum: [PROPOSED, ACCEPTED, DISCARDED] }
+        actionable: { type: boolean }
+        title: { type: string }
+        text: { type: string }
+        acceptanceCriteria: { type: array, items: { type: string } }
+        itemCode: { type: [string, 'null'] }
+        itemId: { type: [string, 'null'], format: uuid }
+        sources: { type: array, items: { type: object, properties: { document: { type: string }, section: { type: [string, 'null'] } } } }
+        basis: { type: string, enum: [DOCUMENTO, INFERENCIA], description: 'DOCUMENTO solo con una cita verificada contra lo enviado al modelo' }
+        effect: { type: string, description: 'Qué cambiará si se acepta' }
+        source: { const: AI_RECOMMENDATION }

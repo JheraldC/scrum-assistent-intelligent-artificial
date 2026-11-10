@@ -20,7 +20,9 @@ en [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
 | Flujo del Sprint | Cuatro etapas (planificación, seguimiento, revisión, retrospectiva), un Sprint abierto a la vez, varios Sprints consecutivos |
 | Product Backlog | Historias de usuario y otros elementos, evaluación `GATE-STORY` (orientativa) |
 | Compuertas | `GATE-PLAN` y `GATE-RETRO` bloquean el avance (con excepción justificada del Facilitador); `GATE-STORY` y `GATE-REVIEW` son orientativas. Cada criterio indica si es **oficial** (Scrum Guide 2020) o **adicional** del prototipo |
-| Asistente de IA | Proveedor compatible con OpenAI (Groq, plan gratuito), salida validada, límites de uso, prompts versionados, historial de interacciones |
+| Equipo Scrum | **Responsabilidades** Scrum (Scrum Master, Product Owner, Developers) por proyecto, independientes de los permisos; **vistas** de solo lectura para cada una; Product Goal y **Definition of Done**; **tareas** opcionales del Sprint; **decisiones y acuerdos**; ayudas opcionales para Planning, Daily, Review y Retrospective |
+| Documentación | Documentos opcionales por proyecto (`.md`, `.txt`, `.pdf`), con versiones, estado «desactualizado» y control de qué entra al contexto de la IA; **adjuntos opcionales** en las evidencias de etapa |
+| Asistente de IA | Proveedor compatible con OpenAI (Groq, plan gratuito), **panel lateral persistente** (cajón en móvil), contexto que crece con los datos del proyecto, citas de documento y sección, **propuestas revisables** (aceptar / editar / descartar), salida validada, límites de uso, prompts versionados e historial de interacciones |
 | Exportación | JSON completo y CSV por conjunto de datos (seudónimos `P-XXXXXX`, sin correos) solo para el Facilitador |
 
 ## Requisitos
@@ -79,13 +81,44 @@ npm run test:e2e           # Playwright: flujo completo en escritorio y móvil
 - Prueba opcional con la IA real (no corre en CI): `LLM_LIVE_TESTS=1 npm run test:integration -- llm-live`.
 - Los datos producidos con la IA simulada **no** son evidencia experimental.
 
+## Cómo usar las funciones de equipo y de IA
+
+- **Vistas del equipo** (`Vistas del equipo` en el menú): abren primero la de su responsabilidad. El Facilitador asigna
+  responsabilidades en *Participantes*. Son de solo lectura y visibles para todos; no puntúan ni comparan a personas.
+- **Definition of Done y Product Goal**: el Facilitador los edita en *Ajustes*. La DoD es opcional.
+- **Tareas**: en *Planificación* (y en la vista de Developers). Son opcionales y la asignación también.
+- **Documentación**: *Documentación* → el Facilitador sube `.md`/`.txt` (se pueden usar como contexto de IA) o `.pdf` (solo
+  referencia: **no se lee su texto**). Máximo 2 MB y 30 documentos por proyecto. Se pueden marcar como desactualizados o
+  excluir del contexto.
+- **Evidencias**: texto o enlace, más un archivo opcional (`.md .txt .pdf .png .jpg`, máx. 5 MB). La aplicación guarda el
+  archivo de forma privada pero **no verifica su contenido**.
+- **Asistente**: a la derecha en escritorio (se contrae y se redimensiona arrastrando o con las flechas del teclado); en
+  móvil se abre con el botón flotante y se cierra con ✕ o Escape. Cada respuesta indica el contexto usado, cita documento y
+  sección cuando se apoya en uno y distingue la inferencia de la IA. **Para responder, el contenido pertinente del proyecto
+  se envía al proveedor externo de IA configurado** (nunca de otros proyectos ni credenciales).
+- **Propuestas de la IA**: aparecen como tarjetas con su efecto. Nada cambia hasta que una persona elige *Aceptar* o *Editar*
+  y confirma. Se registra quién lo aplicó y que el origen fue una sugerencia de IA; el elemento se **reevalúa con las
+  reglas** (la IA nunca aprueba compuertas, ni autoriza excepciones, ni asigna personas). Si alguien cambió el elemento
+  después de la propuesta, se avisa del conflicto y no se sobrescribe nada.
+- Con `LLM_PROVIDER=fake`, escribir `PROPUESTA-IA-SIMULADA` en la pregunta devuelve propuestas de ejemplo (solo pruebas y
+  demostraciones; no son evidencia experimental).
+
+## Limitaciones conocidas
+
+- Los **PDF** no se leen: se guardan como referencia y no alimentan a la IA.
+- Los archivos se guardan en PostgreSQL (`bytea`): adecuado para este prototipo; con mucho volumen convendría almacenamiento de objetos.
+- Solo el **Facilitador** edita el Product Goal / DoD y sube o cambia documentos; una responsabilidad (p. ej. Product Owner) no concede permisos.
+- Aún no se ha comprobado la calidad de las propuestas y citas con el proveedor real de IA (tarea T108/T166).
+- La imagen Docker y el despliegue en producción siguen sin construirse ni ejecutarse (ver `docs/deploy.md`).
+
 ## Arquitectura
 
 ```
 shared/     Esquemas Zod y enumeraciones compartidos por backend y frontend
 backend/    Fastify 5 + Prisma 7 (PostgreSQL). Módulos: auth, projects, sprints, backlog,
             validation (motor puro), flow (compuertas y avance), artifacts (seguimiento, Review,
-            retrospectiva), agent (IA), export, activity
+            retrospectiva), team (tareas, decisiones, vistas), documents (documentación), agent (IA y
+            sugerencias), export, activity
 frontend/   React 19 + Vite + Tailwind 4 + React Router. Textos en español en src/i18n/es.ts
 e2e/        Pruebas Playwright por historia de usuario
 specs/      Especificación, plan, modelo de datos, catálogo de reglas, contratos y diagramas
@@ -116,6 +149,9 @@ Base: `/api/v1`. Contrato completo en [`specs/001-scrum-ai-agent-guide/contracts
 | Artefactos | `…/backlog`, `…/tracking`, `…/review`, `…/retrospective` (+ `/actions`) |
 | Compuertas | `GET /criteria-catalog`, `POST/GET …/validations`, `POST …/validations/{id}/exception` |
 | Asistente | `POST …/agent/chat`, `GET …/agent/interactions`, `POST …/validations/{id}/ai-feedback` |
+| Equipo | `PUT …/members/{id}/responsibilities`, `GET …/views/{scrum-master\|product-owner\|developers}`, `…/sprints/{id}/tasks`, `…/decisions` |
+| Documentación | `…/documents` (+ `/versions`, `/file`), `…/stages/{etapa}/evidence/file` |
+| Sugerencias de IA | `GET …/agent/suggestions`, `POST …/agent/suggestions/{id}/resolve` |
 | Datos | `GET …/export?format=json\|csv&dataset=…`, `GET …/activity` |
 
 ## Despliegue
@@ -132,7 +168,8 @@ docker run -p 3000:3000 --env-file .env.production scrum-assistant
 
 Tablas principales: `user`, `session`, `project`, `project_member`, `sprint`, `sprint_stage`, `evidence`,
 `activity_log`, `backlog_item`, `validation_run`, `criterion_result`, `sprint_item`, `gate_exception`,
-`agent_interaction`, `retrospective`, `retro_action`, `tracking_entry`, `sprint_review`. Detalle y
+`agent_interaction`, `retrospective`, `retro_action`, `tracking_entry`, `sprint_review`, `sprint_task`, `decision`,
+`project_document`, `project_document_version`, `evidence_attachment`, `ai_suggestion`. Detalle y
 restricciones en [`specs/001-scrum-ai-agent-guide/data-model.md`](specs/001-scrum-ai-agent-guide/data-model.md);
 esquema en [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma).
 

@@ -15,7 +15,7 @@ export function ProjectFormPage() {
   const { projectId } = useParams();
   const editing = Boolean(projectId);
   const navigate = useNavigate();
-  const [values, setValues] = useState({ name: '', description: '', productGoal: '' });
+  const [values, setValues] = useState({ name: '', description: '', productGoal: '', definitionOfDone: '' });
   const [version, setVersion] = useState(1);
   const [loading, setLoading] = useState(editing);
   const [busy, setBusy] = useState(false);
@@ -24,7 +24,7 @@ export function ProjectFormPage() {
   const [saved, setSaved] = useState(false);
 
   function apply(project: Project) {
-    setValues({ name: project.name, description: project.description, productGoal: project.productGoal });
+    setValues({ name: project.name, description: project.description, productGoal: project.productGoal, definitionOfDone: project.definitionOfDone ?? '' });
     setVersion(project.version);
   }
 
@@ -113,6 +113,16 @@ export function ProjectFormPage() {
           value={values.productGoal}
           onChange={(e) => setValues({ ...values, productGoal: e.target.value })}
           error={failure?.fields.productGoal}
+        />
+        <FormField
+          multiline
+          rows={4}
+          label={es.projects.definitionOfDone}
+          name="definitionOfDone"
+          hint={es.projects.definitionOfDoneHint}
+          value={values.definitionOfDone}
+          onChange={(e) => setValues({ ...values, definitionOfDone: e.target.value })}
+          error={failure?.fields.definitionOfDone}
         />
         <div className="flex gap-3">
           <Button type="submit" disabled={busy}>

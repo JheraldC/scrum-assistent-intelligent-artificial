@@ -147,4 +147,33 @@ describe('contrato OpenAPI frente a la implementación (T142)', () => {
     await s.ana.client.put(`${s.base}/review`, { results: '', increment: '', feedback: '', goalAssessment: null, goalAssessmentNote: '', expectedVersion: 1 });
     expectContract('/projects/{projectId}/sprints/{sprintId}/review', 'PUT', await s.ana.client.put(`${s.base}/review`, { results: '', increment: '', feedback: '', goalAssessment: null, goalAssessmentNote: '', expectedVersion: 1 }));
   });
+
+  it('equipo Scrum, documentos y sugerencias de IA', async () => {
+    const dec = await s.ana.client.post(`${p()}/decisions`, { kind: 'DECISION', text: 'Usaremos PostgreSQL' });
+    expectContract('/projects/{projectId}/decisions', 'POST', dec);
+    expectContract('/projects/{projectId}/decisions', 'GET', await s.ana.client.get(`${p()}/decisions`));
+
+    const task = await s.ana.client.post(`${s.base}/tasks`, { title: 'Una tarea opcional' });
+    expectContract('/projects/{projectId}/sprints/{sprintId}/tasks', 'POST', task);
+    expectContract('/projects/{projectId}/sprints/{sprintId}/tasks', 'GET', await s.ana.client.get(`${s.base}/tasks`));
+    const t1 = task.json() as { id: string; version: number };
+    expectContract('/projects/{projectId}/sprints/{sprintId}/tasks/{taskId}', 'PATCH', await s.ana.client.patch(`${s.base}/tasks/${t1.id}`, { status: 'DONE', expectedVersion: t1.version }));
+
+    const member = await s.ana.client.put(`${p()}/members/${s.ana.id}/responsibilities`, { responsibilities: ['SCRUM_MASTER'] });
+    expectContract('/projects/{projectId}/members/{userId}/responsibilities', 'PUT', member);
+
+    const doc = await s.ana.client.upload(`${p()}/documents`, { name: 'r.md', data: '# Reglas del negocio' + String.fromCharCode(10) + 'Una falta se justifica con certificado.' }, { name: 'Reglas' });
+    expectContract('/projects/{projectId}/documents', 'POST', doc);
+    expectContract('/projects/{projectId}/documents', 'GET', await s.ana.client.get(`${p()}/documents`));
+
+    const ev = await s.ana.client.upload(`${s.base}/stages/PLANNING/evidence/file`, { name: 'acta.md', data: '# Acta' }, { note: 'Acta' });
+    expectContract('/projects/{projectId}/sprints/{sprintId}/stages/{stageType}/evidence/file', 'POST', ev);
+
+    const chat = await s.ana.client.post(`${p()}/agent/chat`, { message: 'PROPUESTA-IA-SIMULADA ¿Cómo justificar una falta con certificado?' });
+    expectContract('/projects/{projectId}/agent/chat', 'POST', chat);
+    expectContract('/projects/{projectId}/agent/suggestions', 'GET', await s.ana.client.get(`${p()}/agent/suggestions?status=PROPOSED`));
+    for (const view of ['scrum-master', 'product-owner', 'developers']) {
+      expectContract(`/projects/{projectId}/views/${view}`, 'GET', await s.ana.client.get(`${p()}/views/${view}`));
+    }
+  });
 });

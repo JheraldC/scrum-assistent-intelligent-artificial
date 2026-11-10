@@ -283,3 +283,20 @@ El Participante registra avances, impedimentos, observaciones y notas de Daily S
 - El servicio de IA se usa con un plan gratuito de cupo diario pequeño y compartido entre todos los equipos; cuando el cupo se agota el asistente no está disponible hasta su restablecimiento, y las comprobaciones por reglas no se ven afectadas.
 - La interfaz y el contenido están solo en español; los datos de ejemplo se cargan de forma explícita y se marcan como tales.
 - El Facilitador y los Participantes de un proyecto ya acuerdan fuera de la aplicación quién es el Facilitador; el sistema no impone la composición del equipo Scrum.
+
+## Mejora 2026-11: asistente práctico para todo el equipo Scrum
+
+Requisitos añadidos después del MVP. La IA recomienda; las personas deciden; las reglas deterministas siguen siendo las únicas que aprueban o bloquean compuertas.
+
+- **FR-040**: Cada proyecto permite configurar **responsabilidades Scrum** (Scrum Master, Product Owner, Developers) por persona; una persona puede tener varias o ninguna, y no cambian los permisos Facilitador/Participante.
+- **FR-041**: Existen **vistas** de solo lectura para Scrum Master (Sprint Goal, estado, impedimentos abiertos, acciones de retrospectiva pendientes, asuntos que requieren atención calculados por reglas), Product Owner (Product Goal, DoD, Product Backlog ordenado, elementos por aclarar, comentarios de la Review) y Developers (Sprint Goal, elementos seleccionados, tareas opcionales, impedimentos). Ninguna puntúa ni compara a personas.
+- **FR-042**: El **Product Goal** es visible y editable (Facilitador) y cada proyecto tiene una **Definition of Done** compartida y opcional; los proyectos existentes quedan con DoD vacía sin bloquear nada.
+- **FR-043**: El Sprint puede desglosarse, de forma **opcional**, en **tareas** con estado y responsable opcional; no son requisito para planificar ni avanzar. No se exige tener todo el producto definido antes del Sprint 1.
+- **FR-044**: Cada proyecto tiene **documentación permanente opcional** (cargar, consultar, reemplazar con versiones, marcar como desactualizada, incluir o excluir del contexto de IA), separada de la evidencia de las etapas. Sin documentos, el producto y el asistente funcionan con el contexto disponible.
+- **FR-045**: Las **evidencias de etapa** admiten, además de texto o enlace, un **archivo adjunto opcional** (almacenamiento privado) que muestra autor, fecha y etapa y deja claro que la aplicación no verifica su contenido.
+- **FR-046**: El contexto de la IA crece con los datos reales del proyecto (descripción y Product Goal, DoD, Product Backlog, Sprint activo, Sprint Goal, tareas, decisiones, asuntos detectados y fragmentos pertinentes de documentos), nunca de otros proyectos, y cada respuesta indica qué contexto se usó, cita documento y sección cuando se apoya en uno y distingue lo que dice un documento de lo que infiere la IA. La interfaz informa que ese contenido puede enviarse al proveedor externo de IA.
+- **FR-047**: El asistente es un **panel lateral persistente** en escritorio (contraíble y redimensionable) y un **cajón** accesible en móvil.
+- **FR-048**: La IA puede **proponer** historias, criterios de aceptación, tareas, riesgos, dependencias y preguntas. Toda salida es una propuesta: se muestra el cambio y su efecto y la persona puede **aceptar, editar o descartar**, con confirmación; se registra quién lo aplicó y su origen; se respeta el control de versión (sin sobrescribir cambios concurrentes) y se reevalúa con las reglas. La IA no cambia el estado de una compuerta, no autoriza excepciones, no crea compromisos del equipo ni asigna personas.
+- **FR-049**: Existe un **registro de decisiones y acuerdos** (texto, fecha y autor, solo inserción) visible para el equipo y usado como contexto de IA; las acciones de retrospectiva pendientes se siguen con las funciones existentes. Hay ayudas breves y opcionales para Planning, Daily Scrum, Review y Retrospective.
+
+**Fuera de alcance de esta mejora**: notificaciones, calendario, integraciones con Jira/Trello/GitHub, métricas individuales o comparativas.

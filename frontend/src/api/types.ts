@@ -11,6 +11,7 @@ export interface Project {
   name: string;
   description: string;
   productGoal: string;
+  definitionOfDone: string;
   isSample: boolean;
   version: number;
   createdAt: string;
@@ -48,6 +49,7 @@ export interface Member {
   userId: string;
   pseudonym: string;
   role: Role;
+  responsibilities: ScrumResponsibilityValue[];
   email?: string;
 }
 
@@ -56,6 +58,8 @@ export interface Evidence {
   content: string;
   authorPseudonym: string;
   createdAt: string;
+  stageType: string;
+  attachment: { fileName: string; mimeType: string; sizeBytes: number } | null;
 }
 
 export interface Activity {
@@ -133,6 +137,11 @@ export interface AgentReply {
   answer: string;
   suggestions: { target: string; text: string }[];
   referencedCriteria: string[];
+  proposals: Suggestion[];
+  basis: 'DOCUMENTO' | 'INFERENCIA';
+  sources: { document: string; section: string | null }[];
+  contextUsed: { projectData: string[]; documents: { document: string; sections: string[] }[]; documentsAvailable: number; focus: string | null };
+  providerNotice: string;
   disclaimer: string;
   source: 'AI_RECOMMENDATION';
   model: string;
@@ -183,4 +192,131 @@ export interface SprintReview {
   gateState: GateState;
   sprintStatus: 'OPEN' | 'CLOSED';
   sprintGoal: string;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Equipo, vistas por rol, documentos, decisiones y sugerencias de IA
+// ---------------------------------------------------------------------------------------------
+
+export type ScrumResponsibilityValue = 'SCRUM_MASTER' | 'PRODUCT_OWNER' | 'DEVELOPER';
+export type TaskStatusValue = 'TODO' | 'DOING' | 'DONE';
+
+export interface SprintTask {
+  id: string;
+  sprintId: string;
+  backlogItemId: string | null;
+  itemCode: string | null;
+  itemTitle: string | null;
+  title: string;
+  status: TaskStatusValue;
+  assigneeId: string | null;
+  assigneePseudonym: string | null;
+  fromAi: boolean;
+  version: number;
+}
+
+export interface Decision {
+  id: string;
+  kind: 'DECISION' | 'AGREEMENT';
+  text: string;
+  authorPseudonym: string;
+  createdAt: string;
+}
+
+export interface DocumentItem {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'OUTDATED';
+  includeInContext: boolean;
+  currentVersion: number;
+  updatedAt: string;
+  current: { version: number; fileName: string; mimeType: string; sizeBytes: number; uploadedAt: string; uploadedByPseudonym: string; usableAsContext: boolean };
+}
+
+export interface DocumentVersion {
+  version: number;
+  fileName: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  uploadedByPseudonym: string;
+  usableAsContext: boolean;
+}
+
+export interface StageSummary {
+  type: string;
+  status: string;
+  gateState: GateState | null;
+}
+
+export interface AttentionItemDto {
+  code: string;
+  severity: 'info' | 'warning';
+  message: string;
+  count?: number;
+}
+
+export interface ScrumMasterView {
+  project: { id: string; name: string; productGoal: string; definitionOfDone: string };
+  sprint: { id: string; number: number; sprintGoal: string; stages: StageSummary[] } | null;
+  impediments: { id: string; content: string; createdAt: string }[];
+  retroActions: { id: string; description: string; sprintNumber: number; forNextSprint: boolean; ownerPseudonym: string | null; followUpNote: string }[];
+  attention: AttentionItemDto[];
+  decisions: Decision[];
+}
+
+export interface ProductOwnerView {
+  project: { id: string; name: string; productGoal: string; definitionOfDone: string };
+  backlog: {
+    id: string;
+    code: string;
+    kind: 'USER_STORY' | 'ITEM';
+    title: string;
+    priority: number;
+    asA: string | null;
+    iWant: string | null;
+    soThat: string | null;
+    acceptanceCriteria: string[];
+    gateState: GateState;
+    needsClarification: boolean;
+    reasons: string[];
+    inSprint: boolean;
+  }[];
+  reviewFeedback: { sprintNumber: number; results: string; feedback: string; goalAssessment: string | null; goalAssessmentNote: string }[];
+}
+
+export interface DevelopersView {
+  project: { id: string; name: string; productGoal: string; definitionOfDone: string };
+  sprint: { id: string; number: number; sprintGoal: string; workPlan: string; stages: StageSummary[] } | null;
+  items: { id: string; code: string; title: string; acceptanceCriteria: string[]; tasks: SprintTask[] }[];
+  unlinkedTasks: SprintTask[];
+  summary: { todo: number; doing: number; done: number };
+  impediments: { id: string; content: string; createdAt: string }[];
+}
+
+export type SuggestionKindValue = 'STORY' | 'ACCEPTANCE_CRITERIA' | 'TASK' | 'RISK' | 'DEPENDENCY' | 'QUESTION';
+
+export interface Suggestion {
+  id: string;
+  kind: SuggestionKindValue;
+  status: 'PROPOSED' | 'ACCEPTED' | 'DISCARDED';
+  actionable: boolean;
+  title: string;
+  text: string;
+  asA: string | null;
+  iWant: string | null;
+  soThat: string | null;
+  acceptanceCriteria: string[];
+  itemId: string | null;
+  itemCode: string | null;
+  sources: { document: string; section: string | null }[];
+  basis: 'DOCUMENTO' | 'INFERENCIA';
+  effect: string;
+  source: 'AI_RECOMMENDATION';
+}
+
+export interface ResolvedSuggestion {
+  suggestion: Suggestion;
+  result: { entity: string | null; id: string | null };
+  revalidation: { runId: string; gateId: string; status: string; attemptNo: number } | null;
+  notice: string;
 }

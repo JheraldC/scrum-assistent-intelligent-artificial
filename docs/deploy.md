@@ -32,6 +32,14 @@ Los precios y límites del hosting y del plan gratuito de Groq cambian con frecu
 sus páginas oficiales el día del despliegue** y anótelos en el registro (U-03, U-07). Los límites de uso
 configurados en la aplicación son una barrera propia; los del proveedor mandan.
 
+## Archivos y copias de seguridad
+
+Los documentos del proyecto y los adjuntos de evidencia se guardan **dentro de PostgreSQL** (`bytea`; hasta 2 MB por
+documento, 30 por proyecto, y 5 MB por adjunto). Por eso el `pg_dump` incluye los archivos y el tamaño de la base y de las
+copias crece con ellos; revise la cuota de almacenamiento del PostgreSQL gestionado. Los archivos no son públicos: solo se
+sirven a miembros autenticados del proyecto, como descarga. Las solicitudes `multipart/form-data` pasan por la misma
+protección CSRF y los límites de tamaño de la aplicación (si usa un proxy, permita cuerpos de al menos 6 MB).
+
 ## Pasos
 
 1. Crear la base PostgreSQL y un usuario con permisos sobre ella.

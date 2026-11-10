@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { ROLES, type Role } from '@scrum/shared';
+import { ROLES, SCRUM_RESPONSIBILITIES, type Role } from '@scrum/shared';
 import { api } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
-import type { Member } from '../../api/types';
+import type { Member, ScrumResponsibilityValue } from '../../api/types';
 import { useResource } from '../../api/useResource';
 import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -51,7 +51,7 @@ export function MembersPage() {
       {error ? <ErrorBanner message={error.message} onRetry={reload} /> : null}
       {failure && Object.keys(failure.fields).length === 0 ? <ErrorBanner message={failure.message} /> : null}
       {data ? (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">{es.members.title}</caption>
             <thead>
@@ -59,6 +59,7 @@ export function MembersPage() {
                 <th scope="col" className="py-2 pr-4">{es.members.pseudonym}</th>
                 {isFacilitator ? <th scope="col" className="py-2 pr-4">{es.members.email}</th> : null}
                 <th scope="col" className="py-2 pr-4">{es.members.role}</th>
+                <th scope="col" className="py-2 pr-4">{es.members.responsibilities}</th>
                 {isFacilitator ? <th scope="col" className="py-2" /> : null}
               </tr>
             </thead>
@@ -87,6 +88,37 @@ export function MembersPage() {
                       es.projects.roles[member.role]
                     )}
                   </td>
+                  <td className="py-2 pr-4">
+                    {isFacilitator ? (
+                      <fieldset>
+                        <legend className="sr-only">
+                          {es.members.responsibilities}: {member.pseudonym}
+                        </legend>
+                        {SCRUM_RESPONSIBILITIES.map((r) => (
+                          <label key={r} className="flex min-h-8 items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={member.responsibilities.includes(r)}
+                              onChange={(e) => {
+                                const next: ScrumResponsibilityValue[] = e.target.checked
+                                  ? [...member.responsibilities, r]
+                                  : member.responsibilities.filter((x) => x !== r);
+                                void run(
+                                  () => api(`/projects/${project.id}/members/${member.userId}/responsibilities`, { method: 'PUT', body: { responsibilities: next } }),
+                                  es.members.responsibilitiesSaved,
+                                );
+                              }}
+                            />
+                            {es.members.responsibilityNames[r]}
+                          </label>
+                        ))}
+                      </fieldset>
+                    ) : member.responsibilities.length > 0 ? (
+                      member.responsibilities.map((r) => es.members.responsibilityNames[r]).join(', ')
+                    ) : (
+                      es.members.none
+                    )}
+                  </td>
                   {isFacilitator ? (
                     <td className="py-2">
                       <Button
@@ -104,6 +136,7 @@ export function MembersPage() {
         </div>
       ) : null}
 
+      <p className="mt-3 text-sm text-[var(--color-muted)]">{es.members.responsibilitiesHelp}</p>
       {isFacilitator ? (
         <form onSubmit={onAdd} noValidate className="mt-6 max-w-md">
           <h3 className="mb-2 text-lg font-semibold">{es.members.add}</h3>

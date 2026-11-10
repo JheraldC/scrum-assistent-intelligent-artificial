@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type { StageType } from '@scrum/shared';
-import { api } from '../../api/client';
+import { api, apiUpload, downloadFile } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { Evidence } from '../../api/types';
 import { useResource } from '../../api/useResource';
@@ -25,12 +25,24 @@ export function EvidenceBox({ projectId, sprintId, stageType, closed, onChanged 
   const [content, setContent] = useState('');
   const [failure, setFailure] = useState<FormFailure | null>(null);
   const [saved, setSaved] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [fileKey, setFileKey] = useState(0);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setFailure(null);
     try {
-      await api(url, { method: 'POST', body: { content } });
+      if (file) {
+        // Evidencia con archivo: la app lo guarda de forma privada, pero NO verifica su contenido.
+        const form = new FormData();
+        form.append('note', content);
+        form.append('file', file);
+        await apiUpload(`${url}/file`, form);
+        setFile(null);
+        setFileKey((k) => k + 1);
+      } else {
+        await api(url, { method: 'POST', body: { content } });
+      }
       setContent('');
       setSaved(true);
       reload();
@@ -49,7 +61,22 @@ export function EvidenceBox({ projectId, sprintId, stageType, closed, onChanged 
         <ul className="my-2 list-disc space-y-1 pl-5 text-sm">
           {data.map((item) => (
             <li key={item.id}>
-              {item.content} <span className="text-[var(--color-muted)]">({item.authorPseudonym})</span>
+              {item.content}{' '}
+              <span className="text-[var(--color-muted)]">
+                ({item.authorPseudonym} · {new Date(item.createdAt).toLocaleString('es')} · {es.flow.stages[item.stageType as keyof typeof es.flow.stages]?.name ?? item.stageType})
+              </span>
+              {item.attachment ? (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => void downloadFile(`${url}/${item.id}/file`).catch((e: unknown) => setFailure(toFormFailure(e)))}
+                  >
+                    {es.flow.attachment}: {item.attachment.fileName}
+                  </button>
+                </>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -65,6 +92,15 @@ export function EvidenceBox({ projectId, sprintId, stageType, closed, onChanged 
             value={content}
             onChange={(e) => setContent(e.target.value)}
             error={failure?.message}
+          />
+          <FormField
+            key={fileKey}
+            label={es.flow.attachOptional}
+            name={`archivo-${stageType}`}
+            type="file"
+            accept=".md,.txt,.pdf,.png,.jpg,.jpeg"
+            hint={es.flow.attachHint}
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
           <Button type="submit" variant="secondary">
             {es.flow.addEvidence}
