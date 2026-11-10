@@ -5,10 +5,12 @@ import { agentRoutes, createAgentService } from '../modules/agent/index.js';
 import { artifactsRoutes } from '../modules/artifacts/index.js';
 import { authRoutes } from '../modules/auth/index.js';
 import { backlogRoutes } from '../modules/backlog/index.js';
+import { documentsRoutes } from '../modules/documents/index.js';
 import { exportRoutes } from '../modules/export/index.js';
 import { flowRoutes, type FlowOptions } from '../modules/flow/index.js';
 import { projectsRoutes } from '../modules/projects/index.js';
 import { sprintsRoutes } from '../modules/sprints/index.js';
+import { teamRoutes } from '../modules/team/index.js';
 
 /**
  * Registro central de rutas bajo /api/v1. Cada historia añade aquí su módulo
@@ -23,6 +25,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       await api.register(projectsRoutes);
       await api.register(sprintsRoutes);
       await api.register(artifactsRoutes);
+      await api.register(teamRoutes);
+      await api.register(documentsRoutes);
       await api.register(backlogRoutes);
       const agent = createAgentService(app, app.llm);
       const flowOptions: FlowOptions = {

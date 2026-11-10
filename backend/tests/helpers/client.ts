@@ -67,6 +67,31 @@ export class TestClient {
   patch = (url: string, body?: unknown, options?: RequestOptions) => this.request('PATCH', url, body ?? {}, options);
   delete = (url: string, options?: RequestOptions) => this.request('DELETE', url, undefined, options);
 
+  /** Envía un archivo como multipart/form-data (con token CSRF), como lo haría el navegador. */
+  async upload(
+    url: string,
+    file: { name: string; data: Buffer | string },
+    fields: Record<string, string> = {},
+    options: { method?: Method; csrf?: boolean } = {},
+  ) {
+    const CRLF = '\r\n';
+    const boundary = `----prueba${Math.random().toString(16).slice(2)}`;
+    const chunks: Buffer[] = [];
+    for (const [key, value] of Object.entries(fields)) {
+      chunks.push(Buffer.from(['--' + boundary, `Content-Disposition: form-data; name="${key}"`, '', value, ''].join(CRLF)));
+    }
+    chunks.push(
+      Buffer.from(
+        ['--' + boundary, `Content-Disposition: form-data; name="file"; filename="${file.name}"`, 'Content-Type: application/octet-stream', '', ''].join(CRLF),
+      ),
+    );
+    chunks.push(Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data));
+    chunks.push(Buffer.from(CRLF + '--' + boundary + '--' + CRLF));
+    const headers: Record<string, string> = { 'content-type': `multipart/form-data; boundary=${boundary}` };
+    if (options.csrf !== false) headers['x-csrf-token'] = await this.csrfToken();
+    return this.send(options.method ?? 'POST', `/api/v1${url}`, Buffer.concat(chunks), headers);
+  }
+
   async login(email: string, password: string) {
     const res = await this.post('/auth/login', { email, password });
     this.csrf = undefined; // la sesión nueva cambia la semilla del token CSRF

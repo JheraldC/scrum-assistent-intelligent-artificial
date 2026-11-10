@@ -39,7 +39,7 @@ export function toBacklogItemDto(item: ItemRow, gateState: GateState) {
   };
 }
 
-type BacklogItemDto = ReturnType<typeof toBacklogItemDto>;
+export type BacklogItemDto = ReturnType<typeof toBacklogItemDto>;
 
 async function gateStates(db: Tx, projectId: string, items: ItemRow[]): Promise<Map<string, GateState>> {
   const runs = await latestRuns(db, projectId, 'BACKLOG_ITEM', items.map((i) => i.id));
@@ -89,35 +89,42 @@ async function nextCode(tx: Tx, projectId: string, kind: 'USER_STORY' | 'ITEM'):
   return `${prefix}-${max + 1}`;
 }
 
-export async function createItem(db: Db, clock: Clock, actorId: string, projectId: string, input: BacklogItemInput) {
-  return withTransaction(db, async (tx) => {
-    // Serializa la generación de códigos del mismo proyecto.
-    await tx.$queryRaw`SELECT id FROM "project" WHERE id = ${projectId}::uuid FOR UPDATE`;
-    const now = clock.now();
-    const item = await tx.backlogItem.create({
-      data: {
-        ...storyFields(input),
-        projectId,
-        code: await nextCode(tx, projectId, input.kind),
-        createdBy: actorId,
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-    await ActivityRecorder.record(tx, {
+export async function createItemInTx(tx: Tx, clock: Clock, actorId: string, projectId: string, input: BacklogItemInput) {
+  // Serializa la generación de códigos del mismo proyecto.
+  await tx.$queryRaw`SELECT id FROM "project" WHERE id = ${projectId}::uuid FOR UPDATE`;
+  const now = clock.now();
+  const item = await tx.backlogItem.create({
+    data: {
+      ...storyFields(input),
       projectId,
-      actorId,
-      action: 'backlog_item.created',
-      entityType: 'backlog_item',
-      entityId: item.id,
-      payload: { code: item.code },
-      occurredAt: now,
-    });
-    return toBacklogItemDto(item, 'NO_EVALUADA');
+      code: await nextCode(tx, projectId, input.kind),
+      createdBy: actorId,
+      createdAt: now,
+      updatedAt: now,
+    },
   });
+  await ActivityRecorder.record(tx, {
+    projectId,
+    actorId,
+    action: 'backlog_item.created',
+    entityType: 'backlog_item',
+    entityId: item.id,
+    payload: { code: item.code },
+    occurredAt: now,
+  });
+  return toBacklogItemDto(item, 'NO_EVALUADA');
 }
 
-/** Edición con control de versión (FR-036): 409 con el estado actual si la versión no coincide. */
+export async function createItem(db: Db, clock: Clock, actorId: string, projectId: string, input: BacklogItemInput) {
+  return withTransaction(db, (tx) => createItemInTx(tx, clock, actorId, projectId, input));
+}
+
+/** Prioridad siguiente al último elemento (al final del Product Backlog). */
+export async function nextPriority(tx: Tx, projectId: string): Promise<number> {
+  const last = await tx.backlogItem.aggregate({ where: { projectId }, _max: { priority: true } });
+  return (last._max.priority ?? 0) + 1;
+}
+
 export async function updateItem(
   db: Db,
   clock: Clock,
@@ -126,8 +133,19 @@ export async function updateItem(
   itemId: string,
   input: BacklogItemUpdate,
 ) {
+  return withTransaction(db, (tx) => updateItemInTx(tx, clock, actorId, projectId, itemId, input));
+}
+
+export async function updateItemInTx(
+  tx: Tx,
+  clock: Clock,
+  actorId: string,
+  projectId: string,
+  itemId: string,
+  input: BacklogItemUpdate,
+) {
   const { expectedVersion, ...fields } = input;
-  return withTransaction(db, async (tx) => {
+  {
     const existing = await tx.backlogItem.findFirst({ where: { id: itemId, projectId } });
     if (!existing) throw AppError.notFound('No se encontró el elemento del Product Backlog.');
     // El tipo no cambia: el código (HU-n / EL-n) depende de él.
@@ -160,7 +178,7 @@ export async function updateItem(
       occurredAt: now,
     });
     return dto;
-  });
+  }
 }
 
 /** Instantánea del elemento para el motor de reglas; bloquea la fila (`FOR UPDATE`) dentro de la transacción. */

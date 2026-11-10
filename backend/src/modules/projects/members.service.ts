@@ -1,4 +1,4 @@
-import type { Role } from '@scrum/shared';
+import type { Role, ScrumResponsibility } from '@scrum/shared';
 import { AppError } from '../../platform/errors.js';
 import { withTransaction, type Db, type Tx } from '../../platform/db.js';
 import type { Clock } from '../../platform/clock.js';
@@ -28,6 +28,7 @@ export async function listMembers(db: Db, projectId: string, viewerRole: Role) {
     userId: m.userId,
     pseudonym: m.user.pseudonym,
     role: m.role as Role,
+    responsibilities: m.responsibilities,
     // El correo solo lo ve el Facilitador (plan.md, matriz de permisos).
     ...(viewerRole === 'FACILITATOR' ? { email: m.user.email } : {}),
   }));
@@ -53,7 +54,7 @@ export async function addMember(db: Db, clock: Clock, actorId: string, projectId
       payload: { role },
       occurredAt: now,
     });
-    return { userId: user.id, pseudonym: user.pseudonym, role, email: user.email };
+    return { userId: user.id, pseudonym: user.pseudonym, role, responsibilities: [] as string[], email: user.email };
   });
 }
 
@@ -86,7 +87,39 @@ export async function changeRole(
       payload: { role },
       occurredAt: now,
     });
-    return { userId, pseudonym: member.user.pseudonym, role, email: member.user.email };
+    return { userId, pseudonym: member.user.pseudonym, role, responsibilities: member.responsibilities, email: member.user.email };
+  });
+}
+
+/**
+ * Responsabilidades Scrum de una persona en este proyecto (configurables por el Facilitador).
+ * No cambian ningún permiso técnico: son una etiqueta de trabajo que orienta las vistas.
+ */
+export async function setResponsibilities(
+  db: Db,
+  clock: Clock,
+  actorId: string,
+  projectId: string,
+  userId: string,
+  responsibilities: ScrumResponsibility[],
+) {
+  return withTransaction(db, async (tx) => {
+    const member = await tx.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } },
+      include: { user: true },
+    });
+    if (!member) throw AppError.notFound('No se encontró a esa persona en el proyecto.');
+    await tx.projectMember.update({ where: { projectId_userId: { projectId, userId } }, data: { responsibilities } });
+    await ActivityRecorder.record(tx, {
+      projectId,
+      actorId,
+      action: 'member.responsibilities_changed',
+      entityType: 'project_member',
+      entityId: userId,
+      payload: { responsibilities: responsibilities.join(",") },
+      occurredAt: clock.now(),
+    });
+    return { userId, pseudonym: member.user.pseudonym, role: member.role as Role, responsibilities, email: member.user.email };
   });
 }
 

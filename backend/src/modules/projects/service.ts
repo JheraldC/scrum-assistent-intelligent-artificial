@@ -10,6 +10,7 @@ interface ProjectRow {
   name: string;
   description: string;
   productGoal: string;
+  definitionOfDone: string;
   isSample: boolean;
   version: number;
   createdAt: Date;
@@ -21,6 +22,7 @@ export function toProjectDto(p: ProjectRow) {
     name: p.name,
     description: p.description,
     productGoal: p.productGoal,
+    definitionOfDone: p.definitionOfDone,
     isSample: p.isSample,
     version: p.version,
     createdAt: p.createdAt.toISOString(),

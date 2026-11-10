@@ -5,7 +5,7 @@ import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 // Módulos del backend (plan.md, "Arquitectura modular").
-const MODULES = ['auth', 'projects', 'sprints', 'activity', 'backlog', 'flow', 'agent', 'validation', 'artifacts', 'export'];
+const MODULES = ['auth', 'projects', 'sprints', 'activity', 'backlog', 'flow', 'agent', 'validation', 'artifacts', 'export', 'team', 'documents'];
 
 export default tseslint.config(
   {

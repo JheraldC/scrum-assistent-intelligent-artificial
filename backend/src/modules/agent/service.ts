@@ -3,7 +3,11 @@ import { AppError } from '../../platform/errors.js';
 import type { Config } from '../../platform/config.js';
 import type { Clock } from '../../platform/clock.js';
 import type { Db } from '../../platform/db.js';
-import { GATES, getGate } from '../validation/index.js';
+import { latestRuns } from '../../platform/runs.js';
+import { contextDocuments, selectRelevant, type ContextDocument } from '../documents/index.js';
+import { attentionItems, listDecisions } from '../team/index.js';
+import { deriveGateState, GATES, getGate } from '../validation/index.js';
+import { storeProposals } from './suggestions.js';
 import type { AgentBudget } from './budget.js';
 import { buildContext, MAX_HISTORY, type ContextInput } from './context.js';
 import { LlmProviderError, LlmRateLimitError, LlmTimeoutError, type LlmProvider } from './llm/index.js';
@@ -14,6 +18,9 @@ type Status = 'OK' | 'TIMEOUT' | 'PROVIDER_ERROR' | 'INVALID_RESPONSE' | 'BUDGET
 
 export const DISCLAIMER =
   'Esta es una recomendación generada por IA y puede contener errores. Verifíquela con su equipo antes de aplicarla; no cambia el resultado de las evaluaciones.';
+
+export const PROVIDER_NOTICE =
+  'Para responder, el contenido pertinente de este proyecto (datos del Sprint, Product Backlog, decisiones y fragmentos de los documentos marcados para la IA) se envía al proveedor externo de IA configurado. No se envía información de otros proyectos ni credenciales.';
 
 const RULES_STILL_WORK = 'Las comprobaciones por reglas siguen funcionando.';
 
@@ -62,7 +69,7 @@ export class AgentService {
   // ------------------------------------------------------------------------------------------
 
   async chat(userId: string, projectId: string, request: ChatRequest) {
-    const context = await this.chatContext(userId, projectId, request);
+    const { input: context, documents, openSprintItemIds, usedData } = await this.chatContext(userId, projectId, request);
     const built = buildContext(context);
     const outcome = await this.invoke<ChatReply>({
       kind: 'CHAT',
@@ -74,11 +81,42 @@ export class AgentService {
       context: built.text,
     });
     const reply = outcome.value!;
+
+    // Solo se aceptan citas de fragmentos que realmente se enviaron al modelo.
+    const sent = new Map<string, Set<string>>();
+    for (const f of built.includedFragments) {
+      if (!sent.has(f.document)) sent.set(f.document, new Set());
+      sent.get(f.document)!.add(f.section);
+    }
+    const knownSources = [...sent].map(([document, sections]) => ({ document, sections: [...sections] }));
+    const sources = (reply.sources ?? [])
+      .filter((s) => sent.has(s.document))
+      .map((s) => ({ document: s.document, section: s.section && sent.get(s.document)!.has(s.section) ? s.section : null }));
+
+    const proposals = await storeProposals(this.deps.db, this.deps.clock, {
+      projectId,
+      userId,
+      interactionId: outcome.interactionId,
+      proposals: reply.proposals ?? [],
+      knownSources,
+      openSprintItemIds,
+    });
     return {
       interactionId: outcome.interactionId,
       answer: reply.answer,
       suggestions: reply.suggestions ?? [],
       referencedCriteria: reply.referencedCriteria ?? [],
+      proposals,
+      // «Documento» solo con una cita verificada; todo lo demás es inferencia de la IA.
+      basis: sources.length > 0 ? ('DOCUMENTO' as const) : ('INFERENCIA' as const),
+      sources,
+      contextUsed: {
+        projectData: usedData,
+        documents: knownSources,
+        documentsAvailable: documents.length,
+        focus: request.focus ? (context.focus?.label ?? null) : null,
+      },
+      providerNotice: PROVIDER_NOTICE,
       disclaimer: DISCLAIMER,
       source: 'AI_RECOMMENDATION' as const,
       model: outcome.model,
@@ -172,7 +210,11 @@ export class AgentService {
   }
 
   /** Contexto del chat: solo datos del proyecto actual (nunca correos, seudónimos ajenos ni otros proyectos). */
-  private async chatContext(userId: string, projectId: string, request: ChatRequest): Promise<ContextInput> {
+  private async chatContext(
+    userId: string,
+    projectId: string,
+    request: ChatRequest,
+  ): Promise<{ input: ContextInput; documents: ContextDocument[]; openSprintItemIds: Set<string>; usedData: string[] }> {
     const { db } = this.deps;
     const project = await db.project.findUniqueOrThrow({ where: { id: projectId } });
     const history = await db.agentInteraction.findMany({
@@ -180,19 +222,66 @@ export class AgentService {
       orderBy: { createdAt: 'desc' },
       take: MAX_HISTORY,
     });
+    // Contexto progresivo: solo lo que existe y pertenece a ESTE proyecto.
+    const sprint = await db.sprint.findFirst({
+      where: { projectId, status: 'OPEN' },
+      include: { items: { include: { backlogItem: true } }, tasks: true },
+    });
+    const backlogRows = await db.backlogItem.findMany({ where: { projectId }, orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }], take: 30 });
+    const runs = await latestRuns(db, projectId, 'BACKLOG_ITEM', backlogRows.map((b) => b.id));
+    const decisions = (await listDecisions(db, projectId)).slice(0, 5);
+    const attention = (await attentionItems(db, projectId, this.deps.clock.now())).map((a) => `${a.message}${a.count ? ` (${a.count})` : ''}`);
+    const documents = await contextDocuments(db, projectId);
+    const fragments = selectRelevant(documents, request.message, 3600);
+
     const base: ContextInput = {
       productGoal: project.productGoal,
+      definitionOfDone: project.definitionOfDone,
       stages: await this.stages(projectId),
+      sprint: sprint
+        ? {
+            goal: sprint.sprintGoal,
+            plan: sprint.workPlan,
+            items: sprint.items
+              .map((i) => i.backlogItem)
+              .sort((a, b) => a.priority - b.priority)
+              .map((b) => {
+                const tasks = sprint.tasks.filter((t) => t.backlogItemId === b.id);
+                return { code: b.code, title: b.title, totalTasks: tasks.length, doneTasks: tasks.filter((t) => t.status === 'DONE').length };
+              }),
+          }
+        : null,
+      backlog: backlogRows.map((b) => {
+        const run = runs.get(b.id);
+        const state = deriveGateState(run ? { status: run.status, targetVersion: run.targetVersion, hasException: run.hasException } : null, b.version);
+        return { code: b.code, title: b.title, state, criteria: b.acceptanceCriteria.length };
+      }),
+      decisions: decisions.map((d) => ({ kind: d.kind, text: d.text })),
+      attention,
+      documents: {
+        available: documents.map((d) => ({ name: d.name, sections: d.sections.map((x) => x.title) })),
+        fragments: fragments.map((f) => ({ document: f.document, section: f.title, text: f.text })),
+      },
       catalog: GATES.flatMap((g) => g.criteria).map((c) => ({ id: c.id, title: c.title, origin: c.origin })),
       history: history.reverse().map((h) => ({ question: h.question, answer: this.answerOf(h.response) ?? '' })),
       message: request.message,
     };
-    if (!request.focus) return base;
+    const usedData = [
+      'Objetivo del producto',
+      ...(project.definitionOfDone.trim() !== '' ? ['Definition of Done'] : []),
+      ...(sprint ? ['Sprint activo y su Sprint Goal'] : []),
+      ...(backlogRows.length > 0 ? [`Product Backlog (${backlogRows.length} elemento(s))`] : []),
+      ...(decisions.length > 0 ? [`Decisiones y acuerdos (${decisions.length})`] : []),
+      ...(attention.length > 0 ? ['Asuntos detectados por reglas'] : []),
+    ];
+    const openSprintItemIds = new Set(sprint?.items.map((i) => i.backlogItemId) ?? []);
+    const wrap = (input: ContextInput) => ({ input, documents, openSprintItemIds, usedData });
+    if (!request.focus) return wrap(base);
 
     const focus = await this.focusOf(projectId, request.focus.targetType, request.focus.targetId);
-    if (!focus) return base;
+    if (!focus) return wrap(base);
     const gate = GATES.find((g) => g.targetType === request.focus!.targetType);
-    return { ...base, focus, catalog: gate ? gate.criteria.map((c) => ({ id: c.id, title: c.title, origin: c.origin })) : base.catalog };
+    return wrap({ ...base, focus, catalog: gate ? gate.criteria.map((c) => ({ id: c.id, title: c.title, origin: c.origin })) : base.catalog });
   }
 
   private async focusOf(projectId: string, targetType: TargetType, targetId: string): Promise<ContextInput['focus'] | null> {

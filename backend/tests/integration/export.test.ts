@@ -4,6 +4,7 @@ import { closeTestDb, getTestDb, resetDb } from '../helpers/db.js';
 import { addMember, createUser } from '../helpers/factories.js';
 import { DATASET_COLUMNS, parseCsv, TEXT_COLUMNS } from '../helpers/export.js';
 import { completeStage, createScenario, evaluatePlan, fillPlan, type Scenario } from '../helpers/scenario.js';
+import { PROMPT_VERSION } from '../../src/modules/agent/index.js';
 
 type Dataset = keyof typeof DATASET_COLUMNS;
 type Row = Record<string, unknown>;
@@ -107,7 +108,7 @@ describe('exportación CSV y JSON (T120, FR-026–FR-030, SC-006, SC-007)', () =
       const api = (await s.ana.client.get(`/projects/${s.projectId}/agent/interactions`)).json() as { id: string; model: string; promptVersion: string }[];
       const doc = await json();
       expect(doc.datasets.agent_interactions).toHaveLength(api.length);
-      expect(doc.datasets.agent_interactions[0]).toMatchObject({ interaction_id: api[0]!.id, model: 'fake-model-v1', prompt_version: 'v1', provider: 'fake', kind: 'CHAT', status: 'OK' });
+      expect(doc.datasets.agent_interactions[0]).toMatchObject({ interaction_id: api[0]!.id, model: 'fake-model-v1', prompt_version: PROMPT_VERSION, provider: 'fake', kind: 'CHAT', status: 'OK' });
     });
 
     it('los datos de CSV y de JSON son los mismos', async () => {

@@ -20,6 +20,8 @@ export const ProjectInputSchema = z.object({
     .trim()
     .min(1, 'El objetivo del producto es obligatorio.')
     .max(500, 'El objetivo del producto no puede superar 500 caracteres.'),
+  // Definition of Done compartida por el proyecto; opcional para no bloquear proyectos existentes.
+  definitionOfDone: z.string().trim().max(2000, 'La Definition of Done no puede superar 2 000 caracteres.').optional(),
 });
 export type ProjectInput = z.infer<typeof ProjectInputSchema>;
 

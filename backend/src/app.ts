@@ -5,6 +5,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import type { Config } from './platform/config.js';
@@ -51,6 +52,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await app.register(helmet, { global: true });
   await app.register(cookie, { secret: config.SESSION_SECRET });
+  // Subidas de archivos (documentación y evidencias): un archivo por solicitud; los límites finos los pone cada ruta.
+  await app.register(multipart, { limits: { files: 1, fileSize: 5 * 1024 * 1024, fields: 5, parts: 6 } });
   // global: false → los límites se declaran por ruta (inicio de sesión, registro, IA).
   await app.register(rateLimit, { global: false });
   // Mismo origen por defecto: CORS cerrado salvo una lista blanca explícita (nunca comodines).

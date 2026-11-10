@@ -5,6 +5,27 @@ import { z } from 'zod';
 
 const CRITERION_ID = /^(STORY|PLAN|REV|RETRO)-[0-9]{2}$/;
 
+const SOURCE = z.object({ document: z.string().min(1).max(120), section: z.string().max(120).optional() }).strict();
+
+/** Propuesta revisable: nunca se aplica sola; la persona la acepta, edita o descarta. */
+export const ProposalSchema = z
+  .object({
+    kind: z.enum(['STORY', 'ACCEPTANCE_CRITERIA', 'TASK', 'RISK', 'DEPENDENCY', 'QUESTION']),
+    title: z.string().max(200).optional(),
+    text: z.string().min(1).max(800),
+    asA: z.string().max(200).optional(),
+    iWant: z.string().max(500).optional(),
+    soThat: z.string().max(500).optional(),
+    acceptanceCriteria: z.array(z.string().min(1).max(300)).max(10).optional(),
+    /** Código del elemento del Product Backlog al que se refiere (por ejemplo HU-2). */
+    itemCode: z.string().max(20).optional(),
+    /** «DOCUMENTO» si se apoya en un documento citado; «INFERENCIA» si es deducción de la IA. */
+    basis: z.enum(['DOCUMENTO', 'INFERENCIA']).optional(),
+    sources: z.array(SOURCE).max(3).optional(),
+  })
+  .strict();
+export type Proposal = z.infer<typeof ProposalSchema>;
+
 export const ChatReplySchema = z
   .object({
     type: z.literal('chat_reply'),
@@ -14,6 +35,9 @@ export const ChatReplySchema = z
       .max(5)
       .optional(),
     referencedCriteria: z.array(z.string().regex(CRITERION_ID)).max(20).optional(),
+    proposals: z.array(ProposalSchema).max(5).optional(),
+    basis: z.enum(['DOCUMENTO', 'INFERENCIA']).optional(),
+    sources: z.array(SOURCE).max(6).optional(),
   })
   .strict();
 export type ChatReply = z.infer<typeof ChatReplySchema>;

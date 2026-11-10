@@ -10,3 +10,4 @@ export * from './schemas/exception.js';
 export * from './schemas/agent.js';
 export * from './schemas/retrospective.js';
 export * from './schemas/tracking.js';
+export * from './schemas/team.js';

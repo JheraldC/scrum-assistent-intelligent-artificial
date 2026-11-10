@@ -4,6 +4,7 @@ import { AppError } from '../../platform/errors.js';
 import { withTransaction, type Db, type Tx } from '../../platform/db.js';
 import type { Clock } from '../../platform/clock.js';
 import { latestRuns } from '../../platform/runs.js';
+import { EVIDENCE_TYPES, MB, validateUpload } from '../../platform/uploads.js';
 import { ActivityRecorder } from '../activity/index.js';
 import { deriveGateState, type PlanSnapshot } from '../validation/index.js';
 import { toSprintDto, type SprintDto } from './dto.js';
@@ -262,13 +263,15 @@ export async function listEvidence(db: Db, projectId: string, sprintId: string, 
   const rows = await db.evidence.findMany({
     where: { stageId: stage.id },
     orderBy: { createdAt: 'asc' },
-    include: { creator: { select: { pseudonym: true } } },
+    include: { creator: { select: { pseudonym: true } }, attachment: { select: { fileName: true, mimeType: true, sizeBytes: true } } },
   });
   return rows.map((r) => ({
     id: r.id,
     content: r.content,
     authorPseudonym: r.creator.pseudonym,
     createdAt: r.createdAt.toISOString(),
+    stageType,
+    attachment: r.attachment ? { fileName: r.attachment.fileName, mimeType: r.attachment.mimeType.split(';')[0]!, sizeBytes: r.attachment.sizeBytes } : null,
   }));
 }
 
@@ -322,6 +325,73 @@ export async function addEvidence(
       content: evidence.content,
       authorPseudonym: evidence.creator.pseudonym,
       createdAt: evidence.createdAt.toISOString(),
+      stageType,
+      attachment: null,
     };
   });
+}
+
+export const MAX_EVIDENCE_BYTES = 5 * MB;
+
+/**
+ * Registra una evidencia con un archivo adjunto opcional. El archivo queda guardado de forma
+ * privada; la aplicación NO verifica su contenido (solo que el tipo y el formato sean los admitidos).
+ */
+export async function addEvidenceFile(
+  db: Db,
+  clock: Clock,
+  actorId: string,
+  projectId: string,
+  sprintId: string,
+  stageType: StageType,
+  upload: { note: string; fileName: string; data: Buffer },
+) {
+  const file = validateUpload(upload.fileName, upload.data, EVIDENCE_TYPES, MAX_EVIDENCE_BYTES);
+  const note = upload.note.trim().slice(0, 2000) || `Archivo adjunto: ${file.fileName}`;
+  return withTransaction(db, async (tx) => {
+    const sprint = await tx.sprint.findFirst({ where: { id: sprintId, projectId } });
+    if (!sprint) throw AppError.notFound('No se encontró el Sprint.');
+    if (sprint.status === 'CLOSED') throw AppError.conflict('El Sprint está cerrado: ya no admite evidencia.');
+    const stage = await tx.sprintStage.findUnique({ where: { sprintId_type: { sprintId, type: stageType } } });
+    if (!stage) throw AppError.notFound('No se encontró la etapa.');
+    if (stageType === 'TRACKING') await assertTrackingAllowed(tx, sprintId);
+
+    const now = clock.now();
+    if (stage.status === 'PENDING') await applyStageEvent(tx, clock, sprintId, stageType, 'start');
+    const evidence = await tx.evidence.create({
+      data: {
+        stageId: stage.id,
+        content: note,
+        createdBy: actorId,
+        createdAt: now,
+        attachment: { create: { fileName: file.fileName, mimeType: file.mimeType, sizeBytes: file.sizeBytes, data: new Uint8Array(file.data), createdAt: now } },
+      },
+      include: { creator: { select: { pseudonym: true } } },
+    });
+    await ActivityRecorder.record(tx, {
+      projectId,
+      actorId,
+      action: 'evidence.added',
+      entityType: 'sprint_stage',
+      entityId: stage.id,
+      payload: { stage: stageType, withFile: true },
+      occurredAt: now,
+    });
+    return {
+      id: evidence.id,
+      content: evidence.content,
+      authorPseudonym: evidence.creator.pseudonym,
+      createdAt: evidence.createdAt.toISOString(),
+      stageType,
+      attachment: { fileName: file.fileName, mimeType: file.mimeType.split(';')[0]!, sizeBytes: file.sizeBytes },
+    };
+  });
+}
+
+export async function getEvidenceFile(db: Db, projectId: string, sprintId: string, stageType: StageType, evidenceId: string) {
+  const row = await db.evidenceAttachment.findFirst({
+    where: { evidenceId, evidence: { stage: { type: stageType, sprintId, sprint: { projectId } } } },
+  });
+  if (!row) throw AppError.notFound('No se encontró el archivo.');
+  return { fileName: row.fileName, mimeType: row.mimeType, data: Buffer.from(row.data) };
 }

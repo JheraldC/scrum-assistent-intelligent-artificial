@@ -117,6 +117,55 @@ enum GoalAssessment {
   @@map("goal_assessment")
 }
 
+enum ScrumResponsibility {
+  SCRUM_MASTER
+  PRODUCT_OWNER
+  DEVELOPER
+
+  @@map("scrum_responsibility")
+}
+
+enum TaskStatus {
+  TODO
+  DOING
+  DONE
+
+  @@map("task_status")
+}
+
+enum DecisionKind {
+  DECISION
+  AGREEMENT
+
+  @@map("decision_kind")
+}
+
+enum DocumentStatus {
+  ACTIVE
+  OUTDATED
+
+  @@map("document_status")
+}
+
+enum SuggestionKind {
+  STORY
+  ACCEPTANCE_CRITERIA
+  TASK
+  RISK
+  DEPENDENCY
+  QUESTION
+
+  @@map("suggestion_kind")
+}
+
+enum SuggestionStatus {
+  PROPOSED
+  ACCEPTED
+  DISCARDED
+
+  @@map("suggestion_status")
+}
+
 enum StageType {
   PLANNING
   TRACKING
@@ -142,17 +191,23 @@ model User {
   pseudonym    String   @unique
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  sessions          Session[]
-  memberships       ProjectMember[]
-  projectsCreated   Project[]
-  evidence          Evidence[]
-  activity          ActivityLog[]
-  backlogCreated    BacklogItem[]
-  validationsAsked  ValidationRun[]
-  exceptionsGranted GateException[]
-  agentInteractions AgentInteraction[]
-  retroActionsOwned RetroAction[]
-  trackingEntries   TrackingEntry[]
+  sessions            Session[]
+  memberships         ProjectMember[]
+  projectsCreated     Project[]
+  evidence            Evidence[]
+  activity            ActivityLog[]
+  backlogCreated      BacklogItem[]
+  validationsAsked    ValidationRun[]
+  exceptionsGranted   GateException[]
+  agentInteractions   AgentInteraction[]
+  retroActionsOwned   RetroAction[]
+  trackingEntries     TrackingEntry[]
+  tasksCreated        SprintTask[]             @relation("TaskCreator")
+  tasksAssigned       SprintTask[]             @relation("TaskAssignee")
+  decisions           Decision[]
+  documentsUploaded   ProjectDocumentVersion[]
+  suggestionsAsked    AiSuggestion[]           @relation("SuggestionAsker")
+  suggestionsResolved AiSuggestion[]           @relation("SuggestionResolver")
 
   @@map("user")
 }
@@ -173,15 +228,16 @@ model Session {
 }
 
 model Project {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String
-  description String
-  productGoal String   @map("product_goal")
-  isSample    Boolean  @default(false) @map("is_sample")
-  version     Int      @default(1)
-  createdBy   String   @map("created_by") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  description      String
+  productGoal      String   @map("product_goal")
+  definitionOfDone String   @default("") @map("definition_of_done")
+  isSample         Boolean  @default(false) @map("is_sample")
+  version          Int      @default(1)
+  createdBy        String   @map("created_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   creator           User               @relation(fields: [createdBy], references: [id])
   members           ProjectMember[]
@@ -190,15 +246,19 @@ model Project {
   backlog           BacklogItem[]
   validations       ValidationRun[]
   agentInteractions AgentInteraction[]
+  decisions         Decision[]
+  documents         ProjectDocument[]
+  suggestions       AiSuggestion[]
 
   @@map("project")
 }
 
 model ProjectMember {
-  projectId String   @map("project_id") @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  role      Role
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  projectId        String                @map("project_id") @db.Uuid
+  userId           String                @map("user_id") @db.Uuid
+  role             Role
+  responsibilities ScrumResponsibility[] @default([])
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id])
@@ -226,6 +286,7 @@ model Sprint {
   retrospective   Retrospective?
   review          SprintReview?
   trackingEntries TrackingEntry[]
+  tasks           SprintTask[]
 
   @@unique([projectId, number])
   @@map("sprint")
@@ -255,8 +316,9 @@ model Evidence {
   createdBy String   @map("created_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  stage   SprintStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  creator User        @relation(fields: [createdBy], references: [id])
+  stage      SprintStage         @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  creator    User                @relation(fields: [createdBy], references: [id])
+  attachment EvidenceAttachment?
 
   @@map("evidence")
 }
@@ -298,6 +360,7 @@ model BacklogItem {
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   creator     User         @relation(fields: [createdBy], references: [id])
   sprintItems SprintItem[]
+  tasks       SprintTask[]
 
   @@unique([projectId, code])
   @@index([projectId, priority])
@@ -466,4 +529,121 @@ model SprintReview {
   sprint Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
 
   @@map("sprint_review")
+}
+
+/// Archivo adjunto de una evidencia de etapa (almacenado de forma privada en la base de datos).
+model EvidenceAttachment {
+  evidenceId String   @id @map("evidence_id") @db.Uuid
+  fileName   String   @map("file_name")
+  mimeType   String   @map("mime_type")
+  sizeBytes  Int      @map("size_bytes")
+  data       Bytes
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@map("evidence_attachment")
+}
+
+/// Tarea opcional del Sprint: desglose de un elemento seleccionado. La asignación es opcional.
+model SprintTask {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sprintId      String     @map("sprint_id") @db.Uuid
+  backlogItemId String?    @map("backlog_item_id") @db.Uuid
+  title         String
+  status        TaskStatus @default(TODO)
+  assigneeId    String?    @map("assignee_id") @db.Uuid
+  fromAi        Boolean    @default(false) @map("from_ai")
+  version       Int        @default(1)
+  createdBy     String     @map("created_by") @db.Uuid
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  sprint      Sprint       @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  backlogItem BacklogItem? @relation(fields: [backlogItemId], references: [id], onDelete: SetNull)
+  creator     User         @relation("TaskCreator", fields: [createdBy], references: [id])
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([sprintId])
+  @@map("sprint_task")
+}
+
+/// Registro de decisiones y acuerdos del proyecto (solo inserción).
+model Decision {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String       @map("project_id") @db.Uuid
+  kind      DecisionKind
+  text      String
+  createdBy String       @map("created_by") @db.Uuid
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator User    @relation(fields: [createdBy], references: [id])
+
+  @@index([projectId, createdAt])
+  @@map("decision")
+}
+
+/// Documentación permanente del proyecto (opcional), versionada.
+model ProjectDocument {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String         @map("project_id") @db.Uuid
+  name             String
+  status           DocumentStatus @default(ACTIVE)
+  includeInContext Boolean        @default(true) @map("include_in_context")
+  currentVersion   Int            @default(1) @map("current_version")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  project  Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions ProjectDocumentVersion[]
+
+  @@index([projectId])
+  @@map("project_document")
+}
+
+model ProjectDocumentVersion {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId  String   @map("document_id") @db.Uuid
+  version     Int
+  fileName    String   @map("file_name")
+  mimeType    String   @map("mime_type")
+  sizeBytes   Int      @map("size_bytes")
+  data        Bytes
+  /// Texto extraído (solo txt/md); null si el formato no permite usarlo como contexto de IA.
+  textContent String?  @map("text_content")
+  uploadedBy  String   @map("uploaded_by") @db.Uuid
+  uploadedAt  DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  document ProjectDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploader User            @relation(fields: [uploadedBy], references: [id])
+
+  @@unique([documentId, version])
+  @@map("project_document_version")
+}
+
+/// Propuesta de la IA pendiente de decisión humana. Solo una acción explícita la aplica.
+model AiSuggestion {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId     String           @map("project_id") @db.Uuid
+  interactionId String?          @map("interaction_id") @db.Uuid
+  askedBy       String           @map("asked_by") @db.Uuid
+  kind          SuggestionKind
+  payload       Json
+  sources       Json             @default("[]")
+  /// Versión del artefacto destino cuando se propuso (para detectar conflictos al aplicar).
+  targetVersion Int?             @map("target_version")
+  status        SuggestionStatus @default(PROPOSED)
+  resolvedBy    String?          @map("resolved_by") @db.Uuid
+  resolvedAt    DateTime?        @map("resolved_at") @db.Timestamptz(6)
+  appliedEntity String?          @map("applied_entity")
+  appliedId     String?          @map("applied_id") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asker    User    @relation("SuggestionAsker", fields: [askedBy], references: [id])
+  resolver User?   @relation("SuggestionResolver", fields: [resolvedBy], references: [id])
+
+  @@index([projectId, createdAt])
+  @@map("ai_suggestion")
 }

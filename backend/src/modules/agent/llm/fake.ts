@@ -9,7 +9,7 @@ export type FakeStep =
 /**
  * Proveedor simulado y guionizable. Si no hay pasos en cola responde con JSON válido según el tipo
  * que pide el prompt. Disparadores en el texto del usuario, útiles en pruebas funcionales:
- * `FALLO-IA-SIMULADO`, `TIMEOUT-IA-SIMULADO` y `LIMITE-IA-SIMULADO`.
+ * `FALLO-IA-SIMULADO`, `TIMEOUT-IA-SIMULADO`, `LIMITE-IA-SIMULADO` y `PROPUESTA-IA-SIMULADA` (devuelve propuestas).
  * La configuración impide usarlo en producción (config.ts).
  */
 export class FakeLlmProvider implements LlmProvider {
@@ -63,6 +63,36 @@ export class FakeLlmProvider implements LlmProvider {
           type: 'validation_feedback',
           summary: 'Recomendación simulada para pruebas.',
           observations: [{ criterionId: null, text: 'Revise que el objetivo y el trabajo seleccionado estén alineados.', suggestedRewrite: null }],
+        }),
+      };
+    }
+    if (user.includes('PROPUESTA-IA-SIMULADA')) {
+      // Propuestas de todos los tipos (y una cita al primer documento si el contexto trae uno).
+      const doc = [...user.matchAll(/\[Documento: «([^»]+)» \| Sección: «([^»]+)»\]/g)].find((m) => m[1] !== 'nombre');
+      const code = /- (HU-\d+) /.exec(user)?.[1];
+      return {
+        kind: 'ok',
+        text: JSON.stringify({
+          type: 'chat_reply',
+          answer: 'Respuesta simulada con propuestas revisables.',
+          ...(doc ? { basis: 'DOCUMENTO', sources: [{ document: doc[1], section: doc[2] }] } : { basis: 'INFERENCIA' }),
+          proposals: [
+            {
+              kind: 'STORY',
+              title: 'Consultar el resumen semanal de asistencia',
+              text: 'Propuesta simulada de historia.',
+              asA: 'Scrum Master',
+              iWant: 'consultar un resumen semanal de la asistencia del equipo',
+              soThat: 'puedo detectar ausencias recurrentes a tiempo',
+              acceptanceCriteria: ['El resumen muestra la asistencia de cada día de la semana'],
+              basis: doc ? 'DOCUMENTO' : 'INFERENCIA',
+              ...(doc ? { sources: [{ document: doc[1], section: doc[2] }] } : {}),
+            },
+            { kind: 'ACCEPTANCE_CRITERIA', text: 'Criterios simulados.', itemCode: code ?? 'HU-1', acceptanceCriteria: ['Se muestra un mensaje claro cuando falta información'] },
+            { kind: 'TASK', title: 'Diseñar la pantalla del resumen', text: 'Tarea simulada.', itemCode: code ?? 'HU-1' },
+            { kind: 'RISK', text: 'Riesgo simulado: depender de un servicio externo sin plan alterno.' },
+            { kind: 'QUESTION', text: 'Pregunta simulada: ¿quién valida el resumen con las personas usuarias?' },
+          ],
         }),
       };
     }

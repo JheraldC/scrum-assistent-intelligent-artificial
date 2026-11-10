@@ -85,7 +85,7 @@ describe('contexto enviado al modelo (T087, FR-020, FR-037)', () => {
     expect(text).not.toContain('pregunta-3');
   });
 
-  it('se recorta por prioridad para no superar ~2 500 tokens de entrada', () => {
+  it('se recorta por prioridad para no superar ~3 500 tokens de entrada', () => {
     const gigante = 'x'.repeat(60_000);
     const { text, tokens } = buildContext({
       ...base,
@@ -93,7 +93,7 @@ describe('contexto enviado al modelo (T087, FR-020, FR-037)', () => {
       catalog: Array.from({ length: 200 }, (_, i) => ({ id: `STORY-${String(i % 99).padStart(2, '0')}`, title: gigante, origin: 'ADDITIONAL' as const })),
       history: Array.from({ length: 4 }, () => ({ question: gigante, answer: gigante })),
     });
-    expect(MAX_CONTEXT_TOKENS).toBe(2500);
+    expect(MAX_CONTEXT_TOKENS).toBe(3500);
     expect(tokens).toBeLessThanOrEqual(MAX_CONTEXT_TOKENS);
     expect(estimateTokens(text)).toBeLessThanOrEqual(MAX_CONTEXT_TOKENS);
     // Lo imprescindible se conserva: mensaje y objetivo del producto.

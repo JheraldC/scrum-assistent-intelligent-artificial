@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { AddMemberSchema, ChangeRoleSchema, ProjectInputSchema, ProjectUpdateSchema } from '@scrum/shared';
+import { AddMemberSchema, ChangeRoleSchema, MemberResponsibilitiesSchema, ProjectInputSchema, ProjectUpdateSchema } from '@scrum/shared';
 import { requireProjectRole } from '../../platform/access.js';
 import { AppError } from '../../platform/errors.js';
 import { requireAuth } from '../auth/index.js';
-import { addMember, changeRole, listMembers, removeMember } from './members.service.js';
+import { addMember, changeRole, listMembers, removeMember, setResponsibilities } from './members.service.js';
 import { createProject, getProjectDetail, listProjects, updateProject } from './service.js';
 
 const MemberParams = z.object({ projectId: z.uuid(), userId: z.uuid() });
@@ -47,6 +47,14 @@ export async function projectsRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) throw AppError.notFound('No se encontró a esa persona en el proyecto.');
     const { role } = ChangeRoleSchema.parse(request.body);
     return changeRole(app.db, app.clock, request.user!.id, parsed.data.projectId, parsed.data.userId, role);
+  });
+
+  // Responsabilidades Scrum por proyecto: independientes de los permisos técnicos.
+  app.put('/projects/:projectId/members/:userId/responsibilities', { preHandler: facilitator }, async (request) => {
+    const parsed = MemberParams.safeParse(request.params);
+    if (!parsed.success) throw AppError.notFound('No se encontró a esa persona en el proyecto.');
+    const { responsibilities } = MemberResponsibilitiesSchema.parse(request.body);
+    return setResponsibilities(app.db, app.clock, request.user!.id, parsed.data.projectId, parsed.data.userId, responsibilities);
   });
 
   app.delete('/projects/:projectId/members/:userId', { preHandler: facilitator }, async (request, reply) => {
