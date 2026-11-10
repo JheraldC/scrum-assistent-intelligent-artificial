@@ -13,6 +13,16 @@ export const ChatRequestSchema = z.object({
 });
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
+// Artefactos editables sobre los que el asistente puede recomendar campo por campo.
+export const ARTIFACT_TYPES = ['BACKLOG_ITEM', 'PROJECT', 'SPRINT', 'SPRINT_TASK', 'TRACKING', 'SPRINT_REVIEW', 'RETROSPECTIVE', 'RETRO_ACTION'] as const;
+export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
+
+export const RecommendRequestSchema = z.object({
+  artifactType: z.enum(ARTIFACT_TYPES, 'Tipo de artefacto no válido.'),
+  artifactId: z.uuid('Identificador de artefacto no válido.'),
+});
+export type RecommendRequest = z.infer<typeof RecommendRequestSchema>;
+
 /** Recomendación de IA: siempre etiquetada y nunca decide el estado de una compuerta (FR-022, FR-023). */
 export const AiObservationSchema = z.object({
   criterionId: z.string().nullable(),

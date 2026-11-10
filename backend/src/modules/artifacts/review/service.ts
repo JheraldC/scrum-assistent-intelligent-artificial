@@ -17,7 +17,8 @@ async function requireSprint(tx: Tx, projectId: string, sprintId: string) {
 
 /** Garantiza que el Sprint tenga su Review (se crea al primer acceso). */
 async function ensureReview(tx: Tx, sprintId: string) {
-  await tx.sprintReview.upsert({ where: { sprintId }, create: { sprintId }, update: {} });
+  // Atómico ante solicitudes simultáneas (ver ensureRetro).
+  await tx.$executeRaw`INSERT INTO "sprint_review" (sprint_id) VALUES (${sprintId}::uuid) ON CONFLICT (sprint_id) DO NOTHING`;
 }
 
 async function buildDto(tx: Tx, projectId: string, sprintId: string) {

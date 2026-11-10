@@ -67,7 +67,7 @@ export const DocumentUpdateSchema = z
 export type DocumentUpdate = z.infer<typeof DocumentUpdateSchema>;
 
 // Sugerencias de la IA (propuestas revisables).
-export const SUGGESTION_KINDS = ['STORY', 'ACCEPTANCE_CRITERIA', 'TASK', 'RISK', 'DEPENDENCY', 'QUESTION'] as const;
+export const SUGGESTION_KINDS = ['STORY', 'ACCEPTANCE_CRITERIA', 'TASK', 'FIELD_CHANGE', 'RISK', 'DEPENDENCY', 'QUESTION'] as const;
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];
 
 export const SUGGESTION_STATUSES = ['PROPOSED', 'ACCEPTED', 'DISCARDED'] as const;
@@ -84,6 +84,8 @@ export const SuggestionEditSchema = z
     acceptanceCriteria: z.array(z.string().trim().min(1).max(300)).max(20).optional(),
     /** Elemento del Product Backlog destino (criterios de aceptación y tareas). */
     itemId: z.uuid().nullable().optional(),
+    /** Nuevo valor de un campo (propuestas FIELD_CHANGE): texto o lista de textos. */
+    value: z.union([z.string().max(5000), z.array(z.string().max(500)).max(30)]).optional(),
   })
   .strict();
 export type SuggestionEdit = z.infer<typeof SuggestionEditSchema>;

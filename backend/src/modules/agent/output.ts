@@ -61,8 +61,31 @@ export const ValidationFeedbackSchema = z
   .strict();
 export type ValidationFeedback = z.infer<typeof ValidationFeedbackSchema>;
 
-export type OutputKind = 'chat_reply' | 'validation_feedback';
-type Parsed<K extends OutputKind> = K extends 'chat_reply' ? ChatReply : ValidationFeedback;
+export const FieldRecommendationsSchema = z
+  .object({
+    type: z.literal('field_recommendations'),
+    summary: z.string().max(600).optional(),
+    fields: z
+      .array(
+        z
+          .object({
+            field: z.string().min(1).max(60),
+            status: z.enum(['CHANGE', 'NO_CHANGE', 'UNSURE']),
+            proposed: z.union([z.string().max(5000), z.array(z.string().max(500)).max(30)]).optional(),
+            rationale: z.string().max(800).optional(),
+            criterionIds: z.array(z.string().regex(CRITERION_ID)).max(10).optional(),
+            sources: z.array(SOURCE).max(3).optional(),
+          })
+          .strict(),
+      )
+      .max(12),
+    questions: z.array(z.string().min(1).max(300)).max(6).optional(),
+  })
+  .strict();
+export type FieldRecommendations = z.infer<typeof FieldRecommendationsSchema>;
+
+export type OutputKind = 'chat_reply' | 'validation_feedback' | 'field_recommendations';
+type Parsed<K extends OutputKind> = K extends 'chat_reply' ? ChatReply : K extends 'field_recommendations' ? FieldRecommendations : ValidationFeedback;
 
 export type ParseResult<K extends OutputKind> = { ok: true; value: Parsed<K> } | { ok: false; reason: string };
 
@@ -84,7 +107,7 @@ export function parseAgentOutput<K extends OutputKind>(kind: K, raw: string): Pa
   } catch (error) {
     return { ok: false, reason: `JSON inválido: ${error instanceof Error ? error.message.slice(0, 120) : 'error'}` };
   }
-  const schema = kind === 'chat_reply' ? ChatReplySchema : ValidationFeedbackSchema;
+  const schema = kind === 'chat_reply' ? ChatReplySchema : kind === 'field_recommendations' ? FieldRecommendationsSchema : ValidationFeedbackSchema;
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
     const first = parsed.error.issues[0];

@@ -1,4 +1,4 @@
-import type { ChatRequest, TargetType } from '@scrum/shared';
+import type { ChatRequest, RecommendRequest, TargetType } from '@scrum/shared';
 import { AppError } from '../../platform/errors.js';
 import type { Config } from '../../platform/config.js';
 import type { Clock } from '../../platform/clock.js';
@@ -7,11 +7,12 @@ import { latestRuns } from '../../platform/runs.js';
 import { contextDocuments, selectRelevant, type ContextDocument } from '../documents/index.js';
 import { attentionItems, listDecisions } from '../team/index.js';
 import { deriveGateState, GATES, getGate } from '../validation/index.js';
-import { storeProposals } from './suggestions.js';
+import { storeFieldChange, storeProposals, type FieldChange, type SourceRef } from './suggestions.js';
 import type { AgentBudget } from './budget.js';
 import { buildContext, MAX_HISTORY, type ContextInput } from './context.js';
 import { LlmProviderError, LlmRateLimitError, LlmTimeoutError, type LlmProvider } from './llm/index.js';
-import { parseAgentOutput, type ChatReply, type OutputKind, type ValidationFeedback } from './output.js';
+import { loadArtifact, type FieldValue } from './artifacts.js';
+import { parseAgentOutput, type ChatReply, type FieldRecommendations, type OutputKind, type ValidationFeedback } from './output.js';
 import { PROMPT_VERSION, PROMPTS } from './prompts/index.js';
 
 type Status = 'OK' | 'TIMEOUT' | 'PROVIDER_ERROR' | 'INVALID_RESPONSE' | 'BUDGET_EXCEEDED' | 'RATE_LIMITED';
@@ -124,6 +125,143 @@ export class AgentService {
   }
 
   // ------------------------------------------------------------------------------------------
+  // Recomendación campo por campo sobre un artefacto (solicitud contextual automática)
+  // ------------------------------------------------------------------------------------------
+
+  /**
+   * Pide al modelo una recomendación por cada campo editable del artefacto. Las respuestas se validan
+   * y se contrastan con los datos reales: solo se aceptan criterios que fallaron de verdad y citas de
+   * fragmentos que se enviaron. Lo que el modelo omite se informa como «sin pronunciamiento» en lugar
+   * de inventar una respuesta. Nada se aplica: cada cambio es una propuesta pendiente de una persona.
+   */
+  async recommend(userId: string, projectId: string, request: RecommendRequest) {
+    const { db } = this.deps;
+    const artifact = await loadArtifact(db, projectId, request.artifactType, request.artifactId);
+
+    const run = artifact.gate
+      ? await db.validationRun.findFirst({
+          where: { projectId, targetType: artifact.gate.targetType, targetId: artifact.gate.targetId },
+          orderBy: { attemptNo: 'desc' },
+          include: { results: true },
+        })
+      : null;
+    const gate = artifact.gate ? getGate(artifact.gate.gateId) : undefined;
+    const titles = new Map(gate?.criteria.map((c) => [c.id, c.title]));
+    const failed = (run?.results ?? []).filter((r) => r.outcome === 'NOT_MET');
+    const failedIds = new Set(failed.map((r) => r.criterionId));
+
+    const snapshot: Record<string, unknown> = {};
+    for (const f of artifact.fields) snapshot[f.key] = f.value;
+    if (artifact.readOnlyNote) snapshot.registros = artifact.readOnlyNote;
+    const message = `Recomienda mejoras, campo por campo, para: ${artifact.label}.`;
+    const { input: context, documents, usedData } = await this.chatContext(
+      userId,
+      projectId,
+      { message },
+      {
+        noHistory: true,
+        relevanceText: `${message} ${artifact.fields.map((f) => (Array.isArray(f.value) ? f.value.join(' ') : f.value)).join(' ')}`,
+        catalog: gate?.criteria.map((c) => ({ id: c.id, title: c.title, origin: c.origin })) ?? [],
+        focusOverride: {
+          label: artifact.label,
+          snapshot,
+          failedCriteria: failed.map((r) => ({ id: r.criterionId, title: titles.get(r.criterionId) ?? r.criterionId, origin: r.origin, explanation: r.explanation })),
+        },
+      },
+    );
+    const built = buildContext(context);
+    const fieldList =
+      artifact.fields.length > 0
+        ? artifact.fields.map((f) => `- ${f.key} (${f.label}; ${f.kind === 'list' ? 'lista' : 'texto'})`).join('\n')
+        : '(este artefacto no tiene campos editables: haz solo un análisis asesor)';
+    const outcome = await this.invoke<FieldRecommendations>({
+      kind: 'RECOMMENDATION',
+      outputKind: 'field_recommendations',
+      userId,
+      projectId,
+      question: `Recomendación para ${artifact.label}`,
+      task: `${PROMPTS.recommend}\n\nCampos editables (usa exactamente estas claves):\n${fieldList}`,
+      context: built.text,
+    });
+    const out = outcome.value;
+
+    const sent = new Map<string, Set<string>>();
+    for (const f of built.includedFragments) {
+      if (!sent.has(f.document)) sent.set(f.document, new Set());
+      sent.get(f.document)!.add(f.section);
+    }
+    const sameValue = (a: FieldValue, b: FieldValue) => JSON.stringify(Array.isArray(a) ? a.map((x) => x.trim()) : a.trim()) === JSON.stringify(Array.isArray(b) ? b.map((x) => x.trim()) : b.trim());
+
+    const fields = [];
+    for (const def of artifact.fields) {
+      const base = { field: def.key, label: def.label, kind: def.kind, currentValue: def.value };
+      const m = out.fields.find((f) => f.field === def.key);
+      if (!m) {
+        fields.push({ ...base, status: 'NO_RESPONSE' as const, proposedValue: null, rationale: 'El modelo no se pronunció sobre este campo.', basis: 'INFERENCIA' as const, criterionIds: [] as string[], sources: [] as SourceRef[], suggestion: null });
+        continue;
+      }
+      const raw = m.proposed;
+      const proposed: FieldValue | undefined =
+        raw === undefined ? undefined : def.kind === 'list' ? (Array.isArray(raw) ? raw : raw.split('\n')).map((x) => x.trim()).filter(Boolean) : (Array.isArray(raw) ? raw.join('\n') : raw).trim();
+      const empty = proposed === undefined || (Array.isArray(proposed) ? proposed.length === 0 : proposed === '');
+      let status: 'CHANGE' | 'NO_CHANGE' | 'UNSURE' = m.status;
+      let rationale = m.rationale?.trim() ?? '';
+      if (status === 'CHANGE' && empty) {
+        status = 'UNSURE';
+        rationale = rationale || 'El modelo no indicó un valor concreto.';
+      } else if (status === 'CHANGE' && proposed !== undefined && sameValue(proposed, def.value)) {
+        status = 'NO_CHANGE';
+        rationale = rationale || 'El valor propuesto coincide con el actual.';
+      }
+      const criterionIds = (m.criterionIds ?? []).filter((id) => failedIds.has(id));
+      const sources: SourceRef[] = (m.sources ?? [])
+        .filter((s) => sent.has(s.document))
+        .map((s) => ({ document: s.document, section: s.section && sent.get(s.document)!.has(s.section) ? s.section : null }));
+      const basis = sources.length > 0 ? ('DOCUMENTO' as const) : criterionIds.length > 0 ? ('REGLAS' as const) : ('INFERENCIA' as const);
+
+      let suggestion = null;
+      if (status === 'CHANGE' && proposed !== undefined) {
+        const change: FieldChange = {
+          artifactType: artifact.type,
+          artifactId: artifact.id,
+          artifactLabel: artifact.label,
+          field: def.key,
+          fieldLabel: def.label,
+          fieldKind: def.kind,
+          currentValue: def.value,
+          proposedValue: proposed,
+          rationale: rationale || 'Sin explicación del modelo.',
+          basis,
+          criterionIds,
+          hasRules: artifact.gate !== null,
+        };
+        suggestion = await storeFieldChange(db, this.deps.clock, { projectId, userId, interactionId: outcome.interactionId, targetVersion: artifact.version, change, sources });
+      }
+      fields.push({ ...base, status, proposedValue: proposed ?? null, rationale, basis, criterionIds, sources, suggestion });
+    }
+
+    return {
+      interactionId: outcome.interactionId,
+      artifact: { type: artifact.type, id: artifact.id, label: artifact.label, version: artifact.version, editable: artifact.fields.length > 0, hasRules: artifact.gate !== null },
+      // «reglas» solo si el artefacto tiene compuerta; si no, es un análisis asesor de IA (sin validación determinista).
+      kind: artifact.gate ? ('RULES_AND_AI' as const) : ('AI_ONLY' as const),
+      summary: out.summary ?? '',
+      fields,
+      questions: out.questions ?? [],
+      contextUsed: {
+        projectData: usedData,
+        documents: [...sent].map(([document, sections]) => ({ document, sections: [...sections] })),
+        documentsAvailable: documents.length,
+        focus: artifact.label,
+      },
+      providerNotice: PROVIDER_NOTICE,
+      disclaimer: DISCLAIMER,
+      source: 'AI_RECOMMENDATION' as const,
+      model: outcome.model,
+    };
+  }
+
+  // ------------------------------------------------------------------------------------------
   // Retroalimentación sobre una evaluación existente (bajo demanda; no cambia su estado)
   // ------------------------------------------------------------------------------------------
 
@@ -214,6 +352,7 @@ export class AgentService {
     userId: string,
     projectId: string,
     request: ChatRequest,
+    options: { focusOverride?: ContextInput['focus']; catalog?: ContextInput['catalog']; noHistory?: boolean; relevanceText?: string } = {},
   ): Promise<{ input: ContextInput; documents: ContextDocument[]; openSprintItemIds: Set<string>; usedData: string[] }> {
     const { db } = this.deps;
     const project = await db.project.findUniqueOrThrow({ where: { id: projectId } });
@@ -232,7 +371,7 @@ export class AgentService {
     const decisions = (await listDecisions(db, projectId)).slice(0, 5);
     const attention = (await attentionItems(db, projectId, this.deps.clock.now())).map((a) => `${a.message}${a.count ? ` (${a.count})` : ''}`);
     const documents = await contextDocuments(db, projectId);
-    const fragments = selectRelevant(documents, request.message, 3600);
+    const fragments = selectRelevant(documents, options.relevanceText ?? request.message, 3600);
 
     const base: ContextInput = {
       productGoal: project.productGoal,
@@ -263,7 +402,7 @@ export class AgentService {
         fragments: fragments.map((f) => ({ document: f.document, section: f.title, text: f.text })),
       },
       catalog: GATES.flatMap((g) => g.criteria).map((c) => ({ id: c.id, title: c.title, origin: c.origin })),
-      history: history.reverse().map((h) => ({ question: h.question, answer: this.answerOf(h.response) ?? '' })),
+      history: options.noHistory ? [] : history.reverse().map((h) => ({ question: h.question, answer: this.answerOf(h.response) ?? '' })),
       message: request.message,
     };
     const usedData = [
@@ -276,6 +415,7 @@ export class AgentService {
     ];
     const openSprintItemIds = new Set(sprint?.items.map((i) => i.backlogItemId) ?? []);
     const wrap = (input: ContextInput) => ({ input, documents, openSprintItemIds, usedData });
+    if (options.focusOverride) return wrap({ ...base, focus: options.focusOverride, catalog: options.catalog ?? base.catalog });
     if (!request.focus) return wrap(base);
 
     const focus = await this.focusOf(projectId, request.focus.targetType, request.focus.targetId);
@@ -333,7 +473,7 @@ export class AgentService {
   }
 
   private async record(params: {
-    kind: 'CHAT' | 'VALIDATION_FEEDBACK';
+    kind: 'CHAT' | 'VALIDATION_FEEDBACK' | 'RECOMMENDATION';
     userId: string;
     projectId: string;
     validationRunId?: string;
@@ -369,8 +509,8 @@ export class AgentService {
   }
 
   /** Comprueba el presupuesto, llama al modelo (con reintentos acotados), valida y registra siempre. */
-  private async invoke<T extends ChatReply | ValidationFeedback>(params: {
-    kind: 'CHAT' | 'VALIDATION_FEEDBACK';
+  private async invoke<T extends ChatReply | ValidationFeedback | FieldRecommendations>(params: {
+    kind: 'CHAT' | 'VALIDATION_FEEDBACK' | 'RECOMMENDATION';
     outputKind: OutputKind;
     userId: string;
     projectId: string;

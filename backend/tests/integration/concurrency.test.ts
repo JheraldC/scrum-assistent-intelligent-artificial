@@ -102,4 +102,36 @@ describe('ejecución concurrente', () => {
     expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
     expect((await getRetro(s)).version).toBe(retro.version + 1);
   });
+
+  it('regresión: dos PUT simultáneos sobre una retrospectiva recién creada → 200 y 409 (nunca 500)', async () => {
+    // Sin ningún GET previo: la retrospectiva se crea en la propia solicitud. Se repite porque es una carrera.
+    for (let i = 0; i < 8; i += 1) {
+      const nuevo = await createScenario(t.app);
+      const url = `${nuevo.base}/retrospective`;
+      const [a, b] = await Promise.all([
+        nuevo.ana.client.put(url, { ...retroBuena, positives: ['A'], expectedVersion: 1 }),
+        nuevo.ana.client.put(url, { ...retroBuena, positives: ['B'], expectedVersion: 1 }),
+      ]);
+      expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
+      const loser = a.statusCode === 409 ? a : b;
+      expect(loser.json().code).toBe('VERSION_CONFLICT');
+      expect(loser.json().current.version).toBe(2);
+    }
+  });
+
+  it('regresión: la creación simultánea de la Review y de acciones de retrospectiva tampoco produce 500', async () => {
+    const nuevo = await createScenario(t.app);
+    const review = await Promise.all([
+      nuevo.ana.client.put(`${nuevo.base}/review`, { results: 'A', increment: '', feedback: '', goalAssessment: null, goalAssessmentNote: '', expectedVersion: 1 }),
+      nuevo.ana.client.put(`${nuevo.base}/review`, { results: 'B', increment: '', feedback: '', goalAssessment: null, goalAssessmentNote: '', expectedVersion: 1 }),
+    ]);
+    expect(review.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    const otro = await createScenario(t.app);
+    const actions = await Promise.all([
+      otro.ana.client.post(`${otro.base}/retrospective/actions`, { description: 'Acción número uno del equipo' }),
+      otro.ana.client.post(`${otro.base}/retrospective/actions`, { description: 'Acción número dos del equipo' }),
+      otro.ana.client.get(`${otro.base}/retrospective`),
+    ]);
+    expect(actions.every((r) => r.statusCode < 500)).toBe(true);
+  });
 });

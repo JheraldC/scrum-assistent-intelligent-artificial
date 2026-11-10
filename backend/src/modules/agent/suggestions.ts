@@ -1,17 +1,28 @@
 import {
   BacklogItemInputSchema,
   BacklogItemUpdateSchema,
+  ProjectUpdateSchema,
+  RetrospectiveUpdateSchema,
+  SprintReviewUpdateSchema,
+  SprintUpdateSchema,
+  type ArtifactType,
+  type GateId,
   type SuggestionKind,
   type SuggestionResolve,
   type SuggestionStatus,
+  type TargetType,
 } from '@scrum/shared';
 import { AppError } from '../../platform/errors.js';
-import { withTransaction, type Db, type Tx } from '../../platform/db.js';
+import { joinTransaction, withTransaction, type Db, type Tx } from '../../platform/db.js';
 import type { Clock } from '../../platform/clock.js';
 import { ActivityRecorder } from '../activity/index.js';
+import { updateReview, updateRetrospective, updateAction } from '../artifacts/index.js';
 import { createItemInTx, nextPriority, updateItemInTx } from '../backlog/index.js';
+import { updateProject } from '../projects/index.js';
+import { updateSprint } from '../sprints/index.js';
 import { evaluateGate } from '../flow/index.js';
-import { createTaskInTx } from '../team/index.js';
+import { createTaskInTx, updateTask } from '../team/index.js';
+import type { ArtifactField, FieldValue } from './artifacts.js';
 import type { Proposal } from './output.js';
 
 /** Datos propuestos por la IA, ya normalizados (lo que se guarda en `ai_suggestion.payload`). */
@@ -24,6 +35,23 @@ export interface SuggestionPayload {
   acceptanceCriteria: string[];
   itemId: string | null;
   itemCode: string | null;
+  /** Solo en propuestas FIELD_CHANGE: el campo de un artefacto y su valor actual y propuesto. */
+  change?: FieldChange;
+}
+
+export interface FieldChange {
+  artifactType: ArtifactType;
+  artifactId: string;
+  artifactLabel: string;
+  field: string;
+  fieldLabel: string;
+  fieldKind: 'text' | 'list';
+  currentValue: FieldValue;
+  proposedValue: FieldValue;
+  rationale: string;
+  basis: 'REGLAS' | 'DOCUMENTO' | 'INFERENCIA';
+  criterionIds: string[];
+  hasRules: boolean;
 }
 
 export interface SourceRef {
@@ -44,7 +72,7 @@ interface Row {
   appliedId: string | null;
 }
 
-const ACTIONABLE: SuggestionKind[] = ['STORY', 'ACCEPTANCE_CRITERIA', 'TASK'];
+const ACTIONABLE: SuggestionKind[] = ['STORY', 'ACCEPTANCE_CRITERIA', 'TASK', 'FIELD_CHANGE'];
 export const isActionable = (kind: SuggestionKind) => ACTIONABLE.includes(kind);
 
 function effectOf(kind: SuggestionKind, p: SuggestionPayload, targetVersion: number | null): string {
@@ -57,6 +85,10 @@ function effectOf(kind: SuggestionKind, p: SuggestionPayload, targetVersion: num
         : 'Elija el elemento al que se añadirán los criterios antes de aceptar.';
     case 'TASK':
       return `Se creará la tarea «${p.title}» en el Sprint abierto${p.itemCode ? `, dentro de ${p.itemCode}` : ''}, sin responsable asignado.`;
+    case 'FIELD_CHANGE':
+      return p.change
+        ? `Se reemplazará «${p.change.fieldLabel}» de ${p.change.artifactLabel} por el valor propuesto${targetVersion ? ` (se aplica sobre la versión ${targetVersion}; si cambió, no se sobrescribe)` : ''}${p.change.hasRules ? ' y se volverá a evaluar con las reglas' : ''}.`
+        : 'Se reemplazará el valor del campo por el propuesto.';
     default:
       return 'Es solo informativa: aceptarla la marca como revisada y no cambia nada del proyecto.';
   }
@@ -79,7 +111,8 @@ export function toSuggestionDto(row: Row) {
     itemCode: p.itemCode,
     sources: (row.sources ?? []) as SourceRef[],
     // «DOCUMENTO» solo si hay una cita verificada; si no, es una inferencia de la IA.
-    basis: ((row.sources as SourceRef[] | null)?.length ?? 0) > 0 ? ('DOCUMENTO' as const) : ('INFERENCIA' as const),
+    basis: p.change ? p.change.basis : ((row.sources as SourceRef[] | null)?.length ?? 0) > 0 ? ('DOCUMENTO' as const) : ('INFERENCIA' as const),
+    change: p.change ?? null,
     effect: effectOf(row.kind, p, row.targetVersion),
     source: 'AI_RECOMMENDATION' as const,
     createdAt: row.createdAt.toISOString(),
@@ -163,11 +196,19 @@ export async function listSuggestions(db: Db, projectId: string, status?: Sugges
   return rows.map(toSuggestionDto);
 }
 
-interface Applied {
-  entity: 'backlog_item' | 'sprint_task' | null;
-  id: string | null;
-  gateTarget: string | null;
+interface GateRef {
+  gateId: GateId;
+  targetType: TargetType;
+  targetId: string;
 }
+
+interface Applied {
+  entity: 'backlog_item' | 'sprint_task' | 'artifact' | null;
+  id: string | null;
+  gate: GateRef | null;
+}
+
+const STORY_GATE = (id: string): GateRef => ({ gateId: 'GATE-STORY', targetType: 'BACKLOG_ITEM', targetId: id });
 
 async function applyStory(tx: Tx, clock: Clock, userId: string, projectId: string, p: SuggestionPayload): Promise<Applied> {
   const input = BacklogItemInputSchema.parse({
@@ -180,7 +221,7 @@ async function applyStory(tx: Tx, clock: Clock, userId: string, projectId: strin
     priority: await nextPriority(tx, projectId),
   });
   const item = await createItemInTx(tx, clock, userId, projectId, input);
-  return { entity: 'backlog_item', id: item.id, gateTarget: item.id };
+  return { entity: 'backlog_item', id: item.id, gate: STORY_GATE(item.id) };
 }
 
 async function applyCriteria(tx: Tx, clock: Clock, userId: string, projectId: string, p: SuggestionPayload, row: { targetVersion: number | null; payload: unknown }): Promise<Applied> {
@@ -205,15 +246,152 @@ async function applyCriteria(tx: Tx, clock: Clock, userId: string, projectId: st
     expectedVersion,
   });
   const updated = await updateItemInTx(tx, clock, userId, projectId, item.id, input);
-  return { entity: 'backlog_item', id: updated.id, gateTarget: updated.id };
+  return { entity: 'backlog_item', id: updated.id, gate: STORY_GATE(updated.id) };
 }
 
 async function applyTask(tx: Tx, clock: Clock, userId: string, projectId: string, p: SuggestionPayload): Promise<Applied> {
   const sprint = await tx.sprint.findFirst({ where: { projectId, status: 'OPEN' } });
   if (!sprint) throw AppError.conflict('No hay un Sprint abierto donde crear la tarea.');
   const task = await createTaskInTx(tx, clock, userId, projectId, sprint.id, { title: p.title, backlogItemId: p.itemId }, { fromAi: true });
-  return { entity: 'sprint_task', id: task.id, gateTarget: null };
+  return { entity: 'sprint_task', id: task.id, gate: null };
 }
+
+const asList = (value: FieldValue): string[] => (Array.isArray(value) ? value : value.split('\n')).map((v) => v.trim()).filter(Boolean);
+const asText = (value: FieldValue): string => (Array.isArray(value) ? value.join('\n') : value).trim();
+
+/**
+ * Aplica el nuevo valor de UN campo con el servicio normal del artefacto (mismos controles y el mismo
+ * control de versión que una edición manual). Si el artefacto cambió desde la propuesta, el servicio
+ * responde 409 VERSION_CONFLICT y no se sobrescribe nada.
+ */
+async function applyFieldChange(
+  tx: Tx,
+  clock: Clock,
+  userId: string,
+  projectId: string,
+  row: { targetVersion: number | null },
+  p: SuggestionPayload,
+  edited: FieldValue | undefined,
+): Promise<Applied> {
+  const change = p.change;
+  if (!change) throw AppError.validation('La propuesta no tiene un campo destino.');
+  const value = edited ?? change.proposedValue;
+  const db = joinTransaction(tx);
+  const { artifactType: type, artifactId: id, field } = change;
+  const text = asText(value);
+  const list = asList(value);
+  const gate = (gateId: GateId, targetType: TargetType, targetId: string): GateRef => ({ gateId, targetType, targetId });
+  const done = (g: GateRef | null): Applied => ({ entity: 'artifact', id, gate: g });
+  const version = (current: number) => row.targetVersion ?? current;
+
+  switch (type) {
+    case 'BACKLOG_ITEM': {
+      const item = await tx.backlogItem.findFirst({ where: { id, projectId } });
+      if (!item) throw AppError.notFound('No se encontró el elemento del Product Backlog.');
+      const input = BacklogItemUpdateSchema.parse({
+        kind: item.kind,
+        title: field === 'title' ? text : item.title,
+        asA: (field === 'asA' ? text : item.asA) ?? undefined,
+        iWant: (field === 'iWant' ? text : item.iWant) ?? undefined,
+        soThat: (field === 'soThat' ? text : item.soThat) ?? undefined,
+        description: (field === 'description' ? text : item.description) ?? undefined,
+        acceptanceCriteria: field === 'acceptanceCriteria' ? list : item.acceptanceCriteria,
+        priority: item.priority,
+        expectedVersion: version(item.version),
+      });
+      await updateItemInTx(tx, clock, userId, projectId, id, input);
+      return done(STORY_GATE(id));
+    }
+    case 'PROJECT': {
+      const project = await tx.project.findUniqueOrThrow({ where: { id: projectId } });
+      const input = ProjectUpdateSchema.parse({
+        name: project.name,
+        description: project.description,
+        productGoal: field === 'productGoal' ? text : project.productGoal,
+        definitionOfDone: field === 'definitionOfDone' ? text : project.definitionOfDone,
+        expectedVersion: version(project.version),
+      });
+      await updateProject(db, clock, userId, projectId, input);
+      return done(null);
+    }
+    case 'SPRINT': {
+      const sprint = await tx.sprint.findFirst({ where: { id, projectId } });
+      if (!sprint) throw AppError.notFound('No se encontró el Sprint.');
+      const input = SprintUpdateSchema.parse({ [field]: text, expectedVersion: version(sprint.version) });
+      await updateSprint(db, clock, userId, projectId, id, input);
+      return done(gate('GATE-PLAN', 'SPRINT', id));
+    }
+    case 'SPRINT_TASK': {
+      const task = await tx.sprintTask.findFirst({ where: { id, sprint: { projectId } } });
+      if (!task) throw AppError.notFound('No se encontró la tarea.');
+      await updateTask(db, clock, userId, projectId, task.sprintId, id, { title: text, expectedVersion: version(task.version) });
+      return done(null);
+    }
+    case 'SPRINT_REVIEW': {
+      const review = await tx.sprintReview.findUnique({ where: { sprintId: id } });
+      const input = SprintReviewUpdateSchema.parse({
+        results: field === 'results' ? text : (review?.results ?? ''),
+        increment: field === 'increment' ? text : (review?.increment ?? ''),
+        feedback: field === 'feedback' ? text : (review?.feedback ?? ''),
+        goalAssessment: review?.goalAssessment ?? null,
+        goalAssessmentNote: field === 'goalAssessmentNote' ? text : (review?.goalAssessmentNote ?? ''),
+        expectedVersion: version(review?.version ?? 1),
+      });
+      await updateReview(db, clock, userId, projectId, id, input);
+      return done(gate('GATE-REVIEW', 'SPRINT_REVIEW', id));
+    }
+    case 'RETROSPECTIVE': {
+      const retro = await tx.retrospective.findUnique({ where: { sprintId: id } });
+      const input = RetrospectiveUpdateSchema.parse({
+        positives: field === 'positives' ? list : (retro?.positives ?? []),
+        problems: field === 'problems' ? list : (retro?.problems ?? []),
+        improvements: field === 'improvements' ? list : (retro?.improvements ?? []),
+        expectedVersion: version(retro?.version ?? 1),
+      });
+      await updateRetrospective(db, clock, userId, projectId, id, input);
+      return done(gate('GATE-RETRO', 'RETROSPECTIVE', id));
+    }
+    case 'RETRO_ACTION': {
+      const action = await tx.retroAction.findFirst({ where: { id, retrospective: { sprint: { projectId } } }, include: { retrospective: { include: { sprint: true } } } });
+      if (!action) throw AppError.notFound('No se encontró la acción.');
+      await updateAction(db, clock, userId, projectId, action.sprintId, id, { description: text, expectedVersion: version(action.version) });
+      return done(action.retrospective.sprint.status === 'OPEN' ? gate('GATE-RETRO', 'RETROSPECTIVE', action.sprintId) : null);
+    }
+    default:
+      throw AppError.validation('Este artefacto no tiene campos que se puedan modificar.');
+  }
+}
+
+/** Guarda una propuesta de cambio de un campo (nunca se aplica sola). */
+export async function storeFieldChange(
+  db: Db,
+  clock: Clock,
+  params: { projectId: string; userId: string; interactionId: string; targetVersion: number | null; change: FieldChange; sources: SourceRef[] },
+) {
+  const payload: SuggestionPayload = {
+    title: params.change.fieldLabel,
+    text: params.change.rationale,
+    acceptanceCriteria: [],
+    itemId: null,
+    itemCode: null,
+    change: params.change,
+  };
+  const row = await db.aiSuggestion.create({
+    data: {
+      projectId: params.projectId,
+      interactionId: params.interactionId,
+      askedBy: params.userId,
+      kind: 'FIELD_CHANGE',
+      payload: payload as unknown as object,
+      sources: params.sources as unknown as object,
+      targetVersion: params.targetVersion,
+      createdAt: clock.now(),
+    },
+  });
+  return toSuggestionDto(row);
+}
+
+export type { ArtifactField };
 
 /**
  * Acepta (con edición opcional) o descarta una propuesta. Solo esta acción explícita de una persona
@@ -238,7 +416,7 @@ export async function resolveSuggestion(
     if (body.action === 'DISCARD') {
       await tx.aiSuggestion.update({ where: { id: row.id }, data: { status: 'DISCARDED', resolvedBy: userId, resolvedAt: now } });
       await ActivityRecorder.record(tx, { projectId, actorId: userId, action: 'suggestion.discarded', entityType: 'ai_suggestion', entityId: row.id, payload: { kind: row.kind, origin: 'AI_SUGGESTION' }, occurredAt: now });
-      return { applied: { entity: null, id: null, gateTarget: null } as Applied };
+      return { applied: { entity: null, id: null, gate: null } as Applied };
     }
 
     const stored = row.payload as unknown as SuggestionPayload;
@@ -253,10 +431,11 @@ export async function resolveSuggestion(
       acceptanceCriteria: edit.acceptanceCriteria ?? stored.acceptanceCriteria,
       itemId: edit.itemId !== undefined ? edit.itemId : stored.itemId,
     };
-    let applied: Applied = { entity: null, id: null, gateTarget: null };
+    let applied: Applied = { entity: null, id: null, gate: null };
     if (row.kind === 'STORY') applied = await applyStory(tx, clock, userId, projectId, payload);
     else if (row.kind === 'ACCEPTANCE_CRITERIA') applied = await applyCriteria(tx, clock, userId, projectId, payload, row);
     else if (row.kind === 'TASK') applied = await applyTask(tx, clock, userId, projectId, payload);
+    else if (row.kind === 'FIELD_CHANGE') applied = await applyFieldChange(tx, clock, userId, projectId, row, payload, edit.value);
 
     await tx.aiSuggestion.update({
       where: { id: row.id },
@@ -284,8 +463,8 @@ export async function resolveSuggestion(
   const row = await db.aiSuggestion.findUniqueOrThrow({ where: { id: suggestionId } });
   // Revalidación con el motor de reglas (no con IA), a nombre de la persona que aceptó.
   let revalidation: { runId: string; gateId: string; status: string; attemptNo: number } | null = null;
-  if (outcome.applied.gateTarget) {
-    const run = await evaluateGate(db, clock, userId, projectId, { gateId: 'GATE-STORY', targetType: 'BACKLOG_ITEM', targetId: outcome.applied.gateTarget, requestAiFeedback: false });
+  if (outcome.applied.gate) {
+    const run = await evaluateGate(db, clock, userId, projectId, { ...outcome.applied.gate, requestAiFeedback: false });
     revalidation = { runId: run.id, gateId: run.gateId, status: run.status, attemptNo: run.attemptNo };
   }
   return {

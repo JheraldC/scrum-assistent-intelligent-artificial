@@ -40,7 +40,9 @@ const withActions = { actions: { include: { owner: { select: { pseudonym: true }
 
 /** Garantiza que el Sprint tenga su retrospectiva (se crea al primer acceso). */
 async function ensureRetro(tx: Tx, sprintId: string) {
-  await tx.retrospective.upsert({ where: { sprintId }, create: { sprintId }, update: {} });
+  // `ON CONFLICT DO NOTHING`: dos solicitudes simultáneas sobre una retrospectiva aún no creada no deben
+  // chocar con la clave primaria (el `upsert` de Prisma no es atómico y producía un 500).
+  await tx.$executeRaw`INSERT INTO "retrospective" (sprint_id) VALUES (${sprintId}::uuid) ON CONFLICT (sprint_id) DO NOTHING`;
 }
 
 async function requireSprint(tx: Tx, projectId: string, sprintId: string) {

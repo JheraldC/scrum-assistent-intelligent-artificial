@@ -12,4 +12,5 @@ export const PROMPTS = {
   system: load('system.md'),
   chat: load('chat.md'),
   validationFeedback: load('validation-feedback.md'),
+  recommend: load('recommend.md'),
 } as const;

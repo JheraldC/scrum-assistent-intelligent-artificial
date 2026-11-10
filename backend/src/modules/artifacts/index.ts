@@ -4,7 +4,8 @@ import { reviewRoutes } from './review/routes.js';
 import { trackingRoutes } from './tracking/routes.js';
 
 export { getRetroSnapshot } from './retrospective/service.js';
-export { getReviewSnapshot } from './review/service.js';
+export { getReviewSnapshot, updateReview } from './review/service.js';
+export { updateAction, updateRetrospective } from './retrospective/service.js';
 
 /** Artefactos del Sprint: seguimiento, Review y retrospectiva. */
 export async function artifactsRoutes(app: FastifyInstance): Promise<void> {

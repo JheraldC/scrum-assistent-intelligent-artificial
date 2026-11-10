@@ -56,6 +56,28 @@ export class FakeLlmProvider implements LlmProvider {
     if (user.includes('TIMEOUT-IA-SIMULADO')) return { kind: 'error', error: new LlmTimeoutError() };
     if (user.includes('LIMITE-IA-SIMULADO')) return { kind: 'error', error: new LlmRateLimitError(null) };
 
+    if (request.user.includes('[TIPO:field_recommendations]')) {
+      const keys = [...user.matchAll(/^- (\w+) \(([^;]+); (texto|lista)\)$/gm)].map((m) => ({ key: m[1]!, kind: m[3]! }));
+      const current = (key: string) => new RegExp(`^${key}: (.*)$`, 'm').exec(user)?.[1] ?? '';
+      const failed = [...user.matchAll(/^- ([A-Z]+-\d{2}) \(/gm)].map((m) => m[1]!);
+      const none = user.includes('SIN-CAMBIOS-IA-SIMULADO');
+      const doc = [...user.matchAll(/\[Documento: «([^»]+)» \| Sección: «([^»]+)»\]/g)].find((m) => m[1] !== 'nombre');
+      const fields = keys.slice(0, 4).map((k, i) => {
+        if (none || i === 1) return { field: k.key, status: 'NO_CHANGE', rationale: 'El valor actual es adecuado (simulado).' };
+        if (i === 2) return { field: k.key, status: 'UNSURE', rationale: 'Falta contexto para recomendar sobre este campo (simulado).' };
+        const value = current(k.key);
+        return {
+          field: k.key,
+          status: 'CHANGE',
+          proposed: k.kind === 'lista' ? [...(value ? value.replace(/^- /, '').split(' - ') : []), 'Elemento propuesto por la IA simulada'] : `${value} (versión revisada por la IA simulada)`.trim(),
+          rationale: 'Recomendación simulada para pruebas.',
+          ...(failed.length > 0 ? { criterionIds: [failed[0]] } : {}),
+          ...(doc ? { sources: [{ document: doc[1], section: doc[2] }] } : {}),
+        };
+      });
+      return { kind: 'ok', text: JSON.stringify({ type: 'field_recommendations', summary: 'Resumen simulado de la recomendación.', fields, questions: ['¿Quién validará este artefacto con el equipo? (simulado)'] }) };
+    }
+
     if (request.user.includes('[TIPO:validation_feedback]')) {
       return {
         kind: 'ok',

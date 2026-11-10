@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { ChatRequestSchema, SUGGESTION_STATUSES, SuggestionResolveSchema } from '@scrum/shared';
+import { ChatRequestSchema, RecommendRequestSchema, SUGGESTION_STATUSES, SuggestionResolveSchema } from '@scrum/shared';
 import { requireProjectRole } from '../../platform/access.js';
 import { AppError } from '../../platform/errors.js';
 import { requireAuth } from '../auth/index.js';
@@ -34,6 +34,12 @@ export async function agentRoutes(app: FastifyInstance, options: { service: Agen
     const { projectId } = request.params as { projectId: string };
     const input = ChatRequestSchema.parse(request.body);
     return service.chat(request.user!.id, projectId, input);
+  });
+
+  // Recomendación campo por campo sobre un artefacto. Solo genera propuestas pendientes (FR-021).
+  app.post('/projects/:projectId/agent/recommend', { preHandler: anyMember }, async (request) => {
+    const { projectId } = request.params as { projectId: string };
+    return service.recommend(request.user!.id, projectId, RecommendRequestSchema.parse(request.body));
   });
 
   // Historial de interacciones: modelo, versión de prompt y estado (FR-025).
