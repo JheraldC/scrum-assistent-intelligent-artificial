@@ -45,6 +45,7 @@ test.describe('US9: evaluaciones y recomendaciones unificadas en el panel del as
     await expect(resultado.getByRole('heading', { level: 3 })).toContainText('No aprobada');
     await expect(resultado.getByText('La historia tiene rol, necesidad y beneficio')).toBeVisible();
     await expect(resultado.getByText(/Cómo corregirlo/).first()).toBeVisible();
+    await resultado.getByText(/Ver \d+ criterio/).click(); // los criterios cumplidos van plegados
     await expect(resultado.getByText('Oficial de Scrum').first()).toBeVisible();
 
     // En la pantalla del artefacto solo queda un indicador compacto, sin duplicar el resultado.
@@ -89,7 +90,7 @@ test.describe('US9: evaluaciones y recomendaciones unificadas en el panel del as
 
     await PANEL(page).locator('[data-field="title"]').getByRole('button', { name: 'Editar' }).click();
     await PANEL(page).getByLabel(/Valor propuesto \(editable\)/).fill('Registrar la asistencia del equipo');
-    await expect(PANEL(page).getByText(/Se registrará quién lo hizo/)).toBeVisible();
+    await expect(PANEL(page).getByText(/Se registrará que usted lo aplicó/)).toBeVisible();
     await PANEL(page).getByRole('button', { name: 'Confirmar y aplicar' }).click();
 
     await expect(PANEL(page).getByText(/La IA no aprueba compuertas/)).toBeVisible();
@@ -123,7 +124,7 @@ test.describe('US9: evaluaciones y recomendaciones unificadas en el panel del as
     await expect(otra.getByText('Elemento guardado.').first()).toBeVisible();
     await otra.close();
 
-    await PANEL(page).locator('[data-field="title"]').getByRole('button', { name: 'Revisar y aceptar' }).click();
+    await PANEL(page).locator('[data-field="title"]').getByRole('button', { name: 'Aceptar', exact: true }).click();
     await PANEL(page).getByRole('button', { name: 'Confirmar y aplicar' }).click();
     await expect(PANEL(page).getByRole('alert')).toContainText('No se sobrescribió nada');
   });

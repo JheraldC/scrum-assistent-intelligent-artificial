@@ -81,13 +81,28 @@ describe('asistente con IA simulada (T089, FR-020, FR-024, FR-024a, FR-025)', ()
   });
 
   describe('salida inválida del modelo', () => {
-    it('JSON inválido y luego válido: un único reintento de reparación y respuesta correcta', async () => {
-      t.llm.enqueueText('esto no es json', JSON.stringify(respuestaValida));
+    it('JSON inservible y luego válido: un único reintento de reparación y respuesta correcta', async () => {
+      t.llm.enqueueText('{"type":"chat_reply"}', JSON.stringify(respuestaValida));
       const res = await preguntar();
       expect(res.statusCode).toBe(200);
       expect(t.llm.calls).toHaveLength(2);
       expect(t.llm.calls[1]!.user).toMatch(/no cumplió el formato JSON/);
       expect((await interacciones())[0]!.status).toBe('OK');
+    });
+
+    it('una respuesta en texto plano (sin JSON) se usa como respuesta, sin reintento ni error', async () => {
+      t.llm.enqueueText('Para HU-2 empiece por el formulario de inicio de sesión.');
+      const res = await preguntar();
+      expect(res.statusCode).toBe(200);
+      expect(res.json().answer).toBe('Para HU-2 empiece por el formulario de inicio de sesión.');
+      expect(t.llm.calls).toHaveLength(1);
+    });
+
+    it('un JSON cortado por el límite de tokens rescata el texto de la respuesta', async () => {
+      t.llm.enqueueText('{"type":"chat_reply","answer":"Plan sugerido: diseñar, implementar y probar","suggestions":[{"target":"HU-2","text":"Empe');
+      const res = await preguntar();
+      expect(res.statusCode).toBe(200);
+      expect(res.json().answer).toBe('Plan sugerido: diseñar, implementar y probar');
     });
 
     it('dos respuestas inválidas: AI_INVALID_RESPONSE (502) y se registra INVALID_RESPONSE', async () => {
@@ -106,9 +121,12 @@ describe('asistente con IA simulada (T089, FR-020, FR-024, FR-024a, FR-025)', ()
       expect((await preguntar()).json().code).toBe('AI_INVALID_RESPONSE');
     });
 
-    it('un campo no permitido (por ejemplo, "aprobar") invalida la respuesta', async () => {
-      t.llm.enqueueText(JSON.stringify({ ...respuestaValida, aprobar: true }), JSON.stringify({ ...respuestaValida, aprobar: true }));
-      expect((await preguntar()).statusCode).toBe(502);
+    it('un campo no permitido (por ejemplo, "aprobar") se ignora: la respuesta se usa sin él', async () => {
+      t.llm.enqueueText(JSON.stringify({ ...respuestaValida, aprobar: true, gateState: 'APROBADA' }));
+      const res = await preguntar();
+      expect(res.statusCode).toBe(200);
+      expect(res.body).not.toContain('aprobar');
+      expect(res.body).not.toContain('gateState');
     });
   });
 

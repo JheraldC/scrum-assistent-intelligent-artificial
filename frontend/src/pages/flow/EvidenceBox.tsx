@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type { StageType } from '@scrum/shared';
-import { api, apiUpload, downloadFile } from '../../api/client';
+import { api, downloadFile } from '../../api/client';
 import { toFormFailure, type FormFailure } from '../../api/formErrors';
 import type { Evidence } from '../../api/types';
 import { useResource } from '../../api/useResource';
@@ -25,24 +25,12 @@ export function EvidenceBox({ projectId, sprintId, stageType, closed, onChanged 
   const [content, setContent] = useState('');
   const [failure, setFailure] = useState<FormFailure | null>(null);
   const [saved, setSaved] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [fileKey, setFileKey] = useState(0);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setFailure(null);
     try {
-      if (file) {
-        // Evidencia con archivo: la app lo guarda de forma privada, pero NO verifica su contenido.
-        const form = new FormData();
-        form.append('note', content);
-        form.append('file', file);
-        await apiUpload(`${url}/file`, form);
-        setFile(null);
-        setFileKey((k) => k + 1);
-      } else {
-        await api(url, { method: 'POST', body: { content } });
-      }
+      await api(url, { method: 'POST', body: { content } });
       setContent('');
       setSaved(true);
       reload();
@@ -92,15 +80,6 @@ export function EvidenceBox({ projectId, sprintId, stageType, closed, onChanged 
             value={content}
             onChange={(e) => setContent(e.target.value)}
             error={failure?.message}
-          />
-          <FormField
-            key={fileKey}
-            label={es.flow.attachOptional}
-            name={`archivo-${stageType}`}
-            type="file"
-            accept=".md,.txt,.pdf,.png,.jpg,.jpeg"
-            hint={es.flow.attachHint}
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
           <Button type="submit" variant="secondary">
             {es.flow.addEvidence}

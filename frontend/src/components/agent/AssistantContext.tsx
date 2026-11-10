@@ -168,10 +168,7 @@ export function AssistantProvider({ projectId, onProjectChanged, children }: Pro
     async (artifact: ArtifactRef) => {
       setOpen(true);
       setBusy(true);
-      push([
-        { id: nextId(), kind: 'user', text: es.panel.autoRequest(artifact.label) },
-        { id: nextId(), kind: 'system', text: es.panel.requestingFieldByField },
-      ]);
+      push({ id: nextId(), kind: 'user', text: es.panel.autoRequest(artifact.label) });
       try {
         const rec = await api<Recommendation>(`/projects/${projectId}/agent/recommend`, {
           method: 'POST',

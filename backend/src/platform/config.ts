@@ -19,7 +19,10 @@ const EnvSchema = z
     LLM_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
     LLM_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
-    LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(700),
+    // Los modelos con razonamiento gastan parte de este límite antes de responder: 700 cortaba las respuestas.
+    LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(1500),
+    // Opcional: esfuerzo de razonamiento (solo modelos que lo admiten, p. ej. gpt-oss en Groq). Vacío = no se envía.
+    LLM_REASONING_EFFORT: z.preprocess(emptyToUndefined, z.enum(['low', 'medium', 'high']).optional()),
     LLM_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
 
     AI_USER_RATE_PER_MINUTE: z.coerce.number().int().positive().default(10),

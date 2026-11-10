@@ -27,8 +27,40 @@ export function RunStatusBadge({ status }: { status: ValidationRun['status'] }) 
   );
 }
 
-function CriterionRow({ result, title }: { result: CriterionResult; title: string }) {
+function CriterionRow({ result, title, compact }: { result: CriterionResult; title: string; compact?: boolean }) {
   const style = outcomeStyle[result.outcome];
+  if (compact) {
+    // En el panel del asistente: lo esencial en pocas líneas (qué falla, por qué y cómo corregirlo).
+    return (
+      <li className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-sm" data-criterion={result.criterionId}>
+        <p className="font-medium">
+          <span className={`mr-1 inline-flex items-center rounded border px-1 text-xs ${style.classes}`}>
+            <span aria-hidden="true">{style.icon}</span>
+            <span className="sr-only">{es.gate.outcome[result.outcome]}</span>
+          </span>
+          {title}
+        </p>
+        <p className="text-xs text-[var(--color-muted)]">
+          {result.criterionId} · {es.gate.origin[result.origin]} · {result.mandatory ? es.gate.mandatory : es.gate.optional} · {es.gate.ruleCheck}
+        </p>
+        {result.outcome === 'NOT_MET' ? (
+          <>
+            {result.evidence ? (
+              <p className="mt-1">
+                <strong>{es.gate.evidence}:</strong> {result.evidence}
+              </p>
+            ) : null}
+            <p className="mt-1">
+              <strong>{es.gate.why}:</strong> {result.explanation}
+            </p>
+            <p>
+              <strong>{es.gate.howToFix}:</strong> {result.recommendation}
+            </p>
+          </>
+        ) : null}
+      </li>
+    );
+  }
   return (
     <li className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3" data-criterion={result.criterionId}>
       <div className="flex flex-wrap items-center gap-2">
@@ -79,6 +111,8 @@ interface Props {
   onRunUpdated?: (run: ValidationRun) => void;
   /** En el panel del asistente no se repite la sección de IA: las recomendaciones se piden aparte. */
   hideAi?: boolean;
+  /** Vista compacta: los criterios incumplidos a la vista y los cumplidos plegados. */
+  compact?: boolean;
 }
 
 /** Observaciones de IA de una evaluación: siempre etiquetadas y separadas de las reglas (FR-022). */
@@ -145,22 +179,48 @@ function AiSection({ run, projectId, onRunUpdated }: Pick<Props, 'run' | 'projec
 }
 
 /** Resultado de una evaluación: cada criterio con su estado, origen, evidencia y recomendación. */
-export function GateResultPanel({ run, titles, projectId, onRunUpdated, hideAi }: Props) {
+export function GateResultPanel({ run, titles, projectId, onRunUpdated, hideAi, compact }: Props) {
   const met = run.results.filter((r) => r.outcome === 'MET').length;
   const notMet = run.results.filter((r) => r.outcome === 'NOT_MET').length;
   return (
     <section aria-label={es.gate.resultTitle} className="my-4">
-      <h3 className="mb-2 flex flex-wrap items-center gap-3 text-lg font-semibold">
+      <h3 className={`mb-2 flex flex-wrap items-center gap-2 font-semibold ${compact ? 'text-base' : 'text-lg'}`}>
         {es.gate.resultTitle} <RunStatusBadge status={run.status} />
         <span className="text-sm font-normal text-[var(--color-muted)]">
           {es.gate.attempt} {run.attemptNo} · {es.gate.summary(met, notMet)}
         </span>
       </h3>
-      <ul className="space-y-2">
-        {run.results.map((result) => (
-          <CriterionRow key={result.criterionId} result={result} title={titles[result.criterionId] ?? result.criterionId} />
-        ))}
-      </ul>
+      {compact ? (
+        <>
+          <ul className="space-y-2">
+            {run.results
+              .filter((r) => r.outcome === 'NOT_MET')
+              .map((result) => (
+                <CriterionRow compact key={result.criterionId} result={result} title={titles[result.criterionId] ?? result.criterionId} />
+              ))}
+          </ul>
+          {met + run.results.filter((r) => r.outcome === 'NOT_APPLICABLE').length > 0 ? (
+            <details className="mt-2 text-sm">
+              <summary className="cursor-pointer select-none text-[var(--color-muted)]">
+                {es.panel.passedCriteria(run.results.filter((r) => r.outcome !== 'NOT_MET').length)}
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {run.results
+                  .filter((r) => r.outcome !== 'NOT_MET')
+                  .map((result) => (
+                    <CriterionRow compact key={result.criterionId} result={result} title={titles[result.criterionId] ?? result.criterionId} />
+                  ))}
+              </ul>
+            </details>
+          ) : null}
+        </>
+      ) : (
+        <ul className="space-y-2">
+          {run.results.map((result) => (
+            <CriterionRow key={result.criterionId} result={result} title={titles[result.criterionId] ?? result.criterionId} />
+          ))}
+        </ul>
+      )}
       {hideAi ? null : <AiSection run={run} projectId={projectId} onRunUpdated={onRunUpdated} />}
     </section>
   );

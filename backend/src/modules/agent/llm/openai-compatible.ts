@@ -6,6 +6,8 @@ export interface OpenAiCompatibleOptions {
   model: string;
   timeoutMs: number;
   providerName?: string;
+  /** Esfuerzo de razonamiento para modelos que lo admiten; si no se indica, no se envía. */
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 /** Fecha de restablecimiento a partir de cabeceras tipo `1m30s`, `45s` o segundos. */
@@ -45,6 +47,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
           temperature: request.temperature,
           max_tokens: request.maxOutputTokens,
           response_format: { type: 'json_object' },
+          ...(this.options.reasoningEffort ? { reasoning_effort: this.options.reasoningEffort } : {}),
         }),
         signal: AbortSignal.timeout(this.options.timeoutMs),
       });
@@ -63,6 +66,16 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     if (response.status === 429) {
       const retryAfter = response.headers.get('retry-after');
       throw new LlmRateLimitError(retryAfter && Number.isFinite(Number(retryAfter)) ? Number(retryAfter) * 1000 : null, rateLimit);
+    }
+    if (response.status === 400) {
+      // Algunos proveedores (Groq) rechazan con 400 cuando el modelo no produjo un JSON válido, pero devuelven
+      // lo que generó en `failed_generation`: se entrega ese texto para que la respuesta se pueda sanear y usar.
+      const failed = (await response.json().catch(() => null)) as { error?: { failed_generation?: unknown } } | null;
+      const generated = failed?.error?.failed_generation;
+      if (typeof generated === 'string' && generated.trim() !== '') {
+        return { text: generated, model: this.options.model, inputTokens: null, outputTokens: null, latencyMs: Date.now() - started, rateLimit };
+      }
+      throw new LlmProviderError('El proveedor de IA respondió con el estado 400', 400);
     }
     if (!response.ok) throw new LlmProviderError(`El proveedor de IA respondió con el estado ${response.status}`, response.status);
 

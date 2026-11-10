@@ -12,6 +12,7 @@ import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { FormField } from '../../components/ui/FormField';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { Toast } from '../../components/ui/Toast';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
 
@@ -82,10 +83,7 @@ export function TrackingPage() {
 
   return (
     <section className="max-w-3xl">
-      <h2 className="mb-1 text-xl font-semibold">
-        {es.tracking.title} · {es.flow.sprintLabel} {sprint.number}
-      </h2>
-      <p className="mb-2 text-sm text-[var(--color-muted)]">{es.tracking.intro}</p>
+      <PageHeader title={`${es.tracking.title} · ${es.flow.sprintLabel} ${sprint.number}`} info={es.tracking.intro} />
       <CeremonyHelp ceremony="DAILY" />
       {!planningValidated ? <p className="mb-3 rounded-md border border-[var(--color-warning)] bg-[var(--color-warning-bg)] p-3">{es.tracking.needsPlanning}</p> : null}
       {error ? <ErrorBanner message={error.message} onRetry={reload} /> : null}
@@ -114,6 +112,7 @@ export function TrackingPage() {
           rows={3}
           label={es.tracking.content}
           name="contenido-seguimiento"
+          required
           hint={es.tracking.contentHint}
           value={content}
           onChange={(e) => setContent(e.target.value)}

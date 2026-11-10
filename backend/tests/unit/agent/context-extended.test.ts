@@ -87,14 +87,24 @@ describe('salida del modelo con propuestas', () => {
     expect(parsed.ok).toBe(true);
   });
 
-  it.each([
-    ['tipo desconocido', { proposals: [{ kind: 'APROBAR', text: 'x' }] }],
-    ['campo extra no permitido', { proposals: [{ kind: 'TASK', text: 'x', assignee: 'ana' }] }],
-    ['más de 5 propuestas', { proposals: Array.from({ length: 6 }, () => ({ kind: 'RISK', text: 'x' })) }],
-    ['texto vacío', { proposals: [{ kind: 'RISK', text: '' }] }],
-    ['base desconocida', { basis: 'CERTEZA' }],
-  ])('rechaza %s', (_caso, extra) => {
-    expect(parseAgentOutput('chat_reply', reply(extra)).ok).toBe(false);
+  it('sanea las propuestas: descarta tipos desconocidos y textos vacíos, ignora campos extra y limita a 5', () => {
+    const parsed = parseAgentOutput(
+      'chat_reply',
+      reply({
+        basis: 'CERTEZA',
+        proposals: [
+          { kind: 'APROBAR', text: 'x' },
+          { kind: 'RISK', text: '' },
+          { kind: 'TASK', text: 'x', assignee: 'ana' },
+          ...Array.from({ length: 6 }, () => ({ kind: 'RISK', text: 'r' })),
+        ],
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.proposals).toHaveLength(5);
+    expect(parsed.value.proposals![0]).toEqual({ kind: 'TASK', text: 'x' }); // sin «assignee»: la IA no asigna personas
+    expect(parsed.value).not.toHaveProperty('basis');
   });
 
   it('las respuestas del formato anterior (sin propuestas) siguen siendo válidas', () => {

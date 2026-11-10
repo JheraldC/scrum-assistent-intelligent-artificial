@@ -14,6 +14,8 @@ import { Toast } from '../../components/ui/Toast';
 import { VersionConflictDialog } from '../../components/ui/VersionConflictDialog';
 import { ExceptionDialog } from '../../components/validation/ExceptionDialog';
 import { GateStateBadge } from '../../components/validation/GateStateBadge';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { InfoTip } from '../../components/ui/InfoTip';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
 
@@ -138,20 +140,12 @@ export function PlanningPage() {
 
   return (
     <section className="max-w-3xl">
-      <h2 className="mb-1 text-xl font-semibold">
-        {es.planning.title} · {es.flow.sprintLabel} {sprint.number}
-      </h2>
-      <p className="mb-2 text-sm text-[var(--color-muted)]">{es.planning.intro}</p>
-      <details className="mb-3 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm">
-        <summary className="min-h-6 cursor-pointer font-medium">{es.planning.backlogsTitle}</summary>
-        <p className="mt-2">{es.planning.backlogsText}</p>
-      </details>
+      <PageHeader title={`${es.planning.title} · ${es.flow.sprintLabel} ${sprint.number}`} info={`${es.planning.intro} ${es.planning.backlogsText} ${es.planning.gateBlocks}`} />
       <CeremonyHelp ceremony="PLANNING" />
       <p className="mb-3 flex flex-wrap items-center gap-2">
         <GateStateBadge state={gateState} />
         {validated ? <span className="font-medium text-[var(--color-success)]">✓ {es.planning.validated}</span> : null}
       </p>
-      <p className="mb-4 text-sm text-[var(--color-muted)]">{es.planning.gateBlocks}</p>
 
       {failure && Object.keys(failure.fields).length === 0 ? <ErrorBanner message={failure.message} /> : null}
       {conflict ? (
@@ -189,8 +183,9 @@ export function PlanningPage() {
         />
 
         <fieldset className="mb-4 rounded-md border border-[var(--color-border)] p-3" disabled={closed}>
-          <legend className="px-1 text-sm font-medium">{es.planning.items}</legend>
-          <p className="mb-2 text-sm text-[var(--color-muted)]">{es.planning.itemsHint}</p>
+          <legend className="px-1 text-sm font-medium">
+            {es.planning.items} <InfoTip text={es.planning.itemsHint} />
+          </legend>
           {backlog.length === 0 ? <p className="text-sm">{es.planning.noItems}</p> : null}
           <ul className="space-y-1">
             {backlog.map((item) => (

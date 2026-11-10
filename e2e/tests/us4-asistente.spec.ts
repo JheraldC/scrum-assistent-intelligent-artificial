@@ -38,6 +38,7 @@ test.describe('US4: asistente conversacional con IA', () => {
     const respuesta = page.locator('[data-ai-reply]').first();
     await expect(respuesta).toBeVisible();
     await expect(respuesta.getByText('Recomendación de IA')).toBeVisible();
+    await respuesta.getByText('Detalles').click();
     await expect(respuesta.getByText(/puede contener errores/i)).toBeVisible();
     await expect(respuesta.getByText(/Respuesta simulada para pruebas/)).toBeVisible();
     // Las recomendaciones no cambian el artefacto.

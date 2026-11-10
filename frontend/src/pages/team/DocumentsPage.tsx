@@ -9,6 +9,7 @@ import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { FormField } from '../../components/ui/FormField';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { Toast } from '../../components/ui/Toast';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
 
@@ -144,8 +145,7 @@ export function DocumentsPage() {
 
   return (
     <section className="max-w-3xl">
-      <h2 className="mb-1 text-xl font-semibold">{es.docs.title}</h2>
-      <p className="mb-2 text-sm text-[var(--color-muted)]">{es.docs.intro}</p>
+      <PageHeader title={es.docs.title} info={`${es.docs.intro} ${es.docs.formats}`} />
       <p className="mb-4 rounded-md border border-[var(--color-warning)] bg-[var(--color-warning-bg)] p-3 text-sm text-[var(--color-warning)]">
         <span aria-hidden="true">⚠ </span>
         {es.docs.privacy}
@@ -156,7 +156,6 @@ export function DocumentsPage() {
       {canEdit ? (
         <form onSubmit={onUpload} noValidate className="mb-6 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
           <h3 className="mb-2 font-semibold">{es.docs.upload}</h3>
-          <p className="mb-2 text-xs text-[var(--color-muted)]">{es.docs.formats}</p>
           <FormField label={es.docs.name} name="nombre-documento" value={name} onChange={(e) => setName(e.target.value)} />
           <FormField key={fileKey} label={es.docs.file} name="archivo-documento" type="file" accept=".md,.txt,.pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           <Button type="submit" disabled={busy || !file}>

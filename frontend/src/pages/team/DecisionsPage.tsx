@@ -10,6 +10,7 @@ import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { FormField } from '../../components/ui/FormField';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { Toast } from '../../components/ui/Toast';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
 
@@ -38,8 +39,7 @@ export function DecisionsPage() {
 
   return (
     <section className="max-w-3xl">
-      <h2 className="mb-1 text-xl font-semibold">{es.decisions.title}</h2>
-      <p className="mb-4 text-sm text-[var(--color-muted)]">{es.decisions.intro}</p>
+      <PageHeader title={es.decisions.title} info={es.decisions.intro} />
       {error ? <ErrorBanner message={error.message} onRetry={reload} /> : null}
       {failure && Object.keys(failure.fields).length === 0 ? <ErrorBanner message={failure.message} /> : null}
 
@@ -61,7 +61,7 @@ export function DecisionsPage() {
             ))}
           </select>
         </div>
-        <FormField multiline rows={3} label={es.decisions.text} name="texto-decision" hint={es.decisions.textHint} value={text} onChange={(e) => setText(e.target.value)} error={failure?.fields.text} />
+        <FormField multiline rows={3} label={es.decisions.text} name="texto-decision" required hint={es.decisions.textHint} value={text} onChange={(e) => setText(e.target.value)} error={failure?.fields.text} />
         <Button type="submit" disabled={text.trim() === ''}>
           {es.decisions.add}
         </Button>

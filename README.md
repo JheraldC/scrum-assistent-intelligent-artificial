@@ -21,7 +21,7 @@ en [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
 | Product Backlog | Historias de usuario y otros elementos, evaluación `GATE-STORY` (orientativa) |
 | Compuertas | `GATE-PLAN` y `GATE-RETRO` bloquean el avance (con excepción justificada del Facilitador); `GATE-STORY` y `GATE-REVIEW` son orientativas. Cada criterio indica si es **oficial** (Scrum Guide 2020) o **adicional** del prototipo |
 | Equipo Scrum | **Responsabilidades** Scrum (Scrum Master, Product Owner, Developers) por proyecto, independientes de los permisos; **vistas** de solo lectura para cada una; Product Goal y **Definition of Done**; **tareas** opcionales del Sprint; **decisiones y acuerdos**; ayudas opcionales para Planning, Daily, Review y Retrospective |
-| Documentación | Documentos opcionales por proyecto (`.md`, `.txt`, `.pdf`), con versiones, estado «desactualizado» y control de qué entra al contexto de la IA; **adjuntos opcionales** en las evidencias de etapa |
+| Documentación | Documentos opcionales por proyecto (`.md`, `.txt`, `.pdf`), con versiones, estado «desactualizado» y control de qué entra al contexto de la IA. Las evidencias de etapa son texto o enlaces (la subida de archivos como evidencia se retiró) |
 | Asistente de IA | Proveedor compatible con OpenAI (Groq, plan gratuito), **panel lateral persistente** (cajón en móvil), contexto que crece con los datos del proyecto, citas de documento y sección, **propuestas revisables** (aceptar / editar / descartar), salida validada, límites de uso, prompts versionados e historial de interacciones |
 | Exportación | JSON completo y CSV por conjunto de datos (seudónimos `P-XXXXXX`, sin correos) solo para el Facilitador |
 
@@ -51,7 +51,8 @@ Edite `.env` (no se versiona):
 | `CORS_ALLOWED_ORIGINS` | Vacío = mismo origen (recomendado) |
 | `LLM_PROVIDER` | `fake` (solo desarrollo y pruebas; **prohibido en producción**) u `openai-compatible` |
 | `LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL` | Obligatorias con `openai-compatible`; con Groq, `LLM_BASE_URL=https://api.groq.com/openai/v1` |
-| `LLM_TIMEOUT_MS`, `LLM_MAX_OUTPUT_TOKENS`, `LLM_TEMPERATURE` | Parámetros del modelo (se registran en cada interacción) |
+| `LLM_TIMEOUT_MS`, `LLM_MAX_OUTPUT_TOKENS`, `LLM_TEMPERATURE` | Parámetros del modelo (se registran en cada interacción). El límite de salida por defecto es 1500: los modelos con razonamiento gastan parte antes de responder |
+| `LLM_REASONING_EFFORT` | Opcional (`low`, `medium`, `high`): solo para modelos con razonamiento, p. ej. `openai/gpt-oss-*` en Groq. Con `low` responden más rápido y dejan más tokens para la respuesta |
 | `AI_USER_RATE_PER_MINUTE`, `AI_DAILY_TOKEN_BUDGET_GLOBAL`, `AI_DAILY_TOKEN_BUDGET_PER_PROJECT` | Límites de uso; el global debe quedar por debajo del cupo diario de la cuenta del proveedor |
 
 ## Ejecución en desarrollo
@@ -90,8 +91,8 @@ npm run test:e2e           # Playwright: flujo completo en escritorio y móvil (
 - **Documentación**: *Documentación* → el Facilitador sube `.md`/`.txt` (se pueden usar como contexto de IA) o `.pdf` (solo
   referencia: **no se lee su texto**). Máximo 2 MB y 30 documentos por proyecto. Se pueden marcar como desactualizados o
   excluir del contexto.
-- **Evidencias**: texto o enlace, más un archivo opcional (`.md .txt .pdf .png .jpg`, máx. 5 MB). La aplicación guarda el
-  archivo de forma privada pero **no verifica su contenido**.
+- **Evidencias**: texto o enlace, con autor, fecha y etapa. Ya no se pueden adjuntar archivos; los adjuntos guardados
+  antes de retirar esa función se conservan y se pueden descargar.
 - **Evaluar y pedir recomendaciones (panel derecho)**: los botones siguen en cada pantalla.
   - **Evaluar historia / planificación / Review / retrospectiva** ejecuta la validación por reglas (determinista, **sin IA**) y
     muestra el resultado completo en el panel: estado, criterios, evidencia, por qué y cómo corregir. Bajo el formulario queda
@@ -117,12 +118,26 @@ npm run test:e2e           # Playwright: flujo completo en escritorio y móvil (
 - Con `LLM_PROVIDER=fake`, escribir `PROPUESTA-IA-SIMULADA` en la pregunta devuelve propuestas de ejemplo (solo pruebas y
   demostraciones; no son evidencia experimental).
 
+## Interfaz
+
+- La explicación de cada pantalla y de cada campo está en un icono **ⓘ**: aparece al pasar el ratón, al enfocarlo con el
+  teclado o al tocarlo, y se cierra con Escape. Así las pantallas muestran menos texto fijo.
+- Los campos **obligatorios** llevan un asterisco rojo. Si quedan vacíos al salir del campo, o el servidor devuelve un
+  error, el borde y el mensaje se muestran en rojo (con icono y texto, no solo color).
+- En el asistente, sus mensajes aparecen a la derecha con fondo azul y los de la IA a la izquierda con fondo morado claro;
+  los errores, en rojo. **Enter** envía y **Mayús+Enter** inserta un salto de línea.
+- El resultado de una evaluación en el panel muestra primero los criterios incumplidos; los cumplidos quedan plegados.
+- Varias propuestas de una misma recomendación se pueden aceptar una tras otra: el conflicto se comprueba **por campo**
+  (solo bloquea si alguien cambió ese mismo campo entretanto).
+
 ## Limitaciones conocidas
 
 - Los **PDF** no se leen: se guardan como referencia y no alimentan a la IA.
 - Los archivos se guardan en PostgreSQL (`bytea`): adecuado para este prototipo; con mucho volumen convendría almacenamiento de objetos.
 - Solo el **Facilitador** edita el Product Goal / DoD y sube o cambia documentos; una responsabilidad (p. ej. Product Owner) no concede permisos.
-- Aún no se ha comprobado la calidad de las propuestas y citas con el proveedor real de IA (tarea T108/T166).
+- Aún no se ha comprobado la calidad de las propuestas y citas con el proveedor real de IA (tarea T108/T166). Si el modelo
+  responde con un formato imperfecto, la aplicación lo sanea (ignora claves desconocidas, recorta, rescata el texto de un JSON
+  cortado o usa el texto plano); solo falla si no hay nada utilizable.
 - La imagen Docker y el despliegue en producción siguen sin construirse ni ejecutarse: este equipo no tiene Docker (ver `docs/deploy.md`).
 - Las pruebas e2e usan su propio servidor (puertos 5273/3100, IA simulada y base de pruebas); si esos puertos están ocupados fallan en lugar de reutilizar el servidor de desarrollo.
 

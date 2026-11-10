@@ -4,8 +4,7 @@ import { EvidenceInputSchema, SprintItemsSchema, SprintUpdateSchema, StageTypeSc
 import { requireProjectRole } from '../../platform/access.js';
 import { AppError } from '../../platform/errors.js';
 import { requireAuth } from '../auth/index.js';
-import { readUpload } from '../../platform/uploads.js';
-import { addEvidence, addEvidenceFile, createSprint, getEvidenceFile, getSprint, listEvidence, MAX_EVIDENCE_BYTES, listSprints, setSprintItems, updateSprint } from './service.js';
+import { addEvidence, createSprint, getEvidenceFile, getSprint, listEvidence, listSprints, setSprintItems, updateSprint } from './service.js';
 
 const SprintParams = z.object({ projectId: z.uuid(), sprintId: z.uuid() });
 const StageParams = SprintParams.extend({ stageType: StageTypeSchema });
@@ -72,23 +71,7 @@ export async function sprintsRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // Evidencia con archivo adjunto opcional (almacenamiento privado; la app no verifica su contenido).
-  app.post(
-    '/projects/:projectId/sprints/:sprintId/stages/:stageType/evidence/file',
-    { preHandler: anyMember },
-    async (request, reply) => {
-      const { projectId, sprintId, stageType } = parseParams(StageParams, request.params);
-      const { fields, file } = await readUpload(request, MAX_EVIDENCE_BYTES);
-      if (!file) throw AppError.validation('Seleccione un archivo.', [{ field: 'file', message: 'Seleccione un archivo.' }]);
-      const evidence = await addEvidenceFile(app.db, app.clock, request.user!.id, projectId, sprintId, stageType, {
-        note: fields.note ?? '',
-        fileName: file.fileName,
-        data: file.data,
-      });
-      return reply.status(201).send(evidence);
-    },
-  );
-
+  // La subida de archivos como evidencia se retiró; solo se conserva la descarga de los adjuntos ya guardados.
   app.get(
     '/projects/:projectId/sprints/:sprintId/stages/:stageType/evidence/:evidenceId/file',
     { preHandler: anyMember },

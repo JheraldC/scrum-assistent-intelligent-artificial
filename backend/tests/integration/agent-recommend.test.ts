@@ -167,8 +167,15 @@ describe('recomendaciones de IA campo por campo y propuestas de cambio', () => {
       expect(rec.fields.some((f) => f.suggestion)).toBe(false);
     });
 
-    it('una salida inválida (campos extra) falla con un mensaje claro y no guarda propuestas', async () => {
-      const bad = JSON.stringify({ type: 'field_recommendations', fields: [{ field: 'title', status: 'APROBAR' }] });
+    it('una entrada con un estado inventado (p. ej. «aprobar») se descarta: el campo queda «sin pronunciamiento»', async () => {
+      t.llm.enqueueText(JSON.stringify({ type: 'field_recommendations', fields: [{ field: 'title', status: 'APROBAR', proposed: 'x' }] }));
+      const rec = await ok('BACKLOG_ITEM', s.storyId);
+      expect(rec.fields.find((f) => f.field === 'title')!.status).toBe('NO_RESPONSE');
+      expect(await getTestDb().aiSuggestion.count()).toBe(0);
+    });
+
+    it('una salida inservible (sin la lista de campos) falla con un mensaje claro y no guarda propuestas', async () => {
+      const bad = JSON.stringify({ type: 'field_recommendations', resumen: 'nada' });
       t.llm.enqueueText(bad, bad);
       const res = await recomendar('BACKLOG_ITEM', s.storyId);
       expect(res.statusCode).toBe(502);
@@ -298,21 +305,56 @@ describe('recomendaciones de IA campo por campo y propuestas de cambio', () => {
       const res = await resolver(field.suggestion!.id, { action: 'ACCEPT', confirm: true });
       expect(res.statusCode).toBe(409);
       expect(res.json().code).toBe('VERSION_CONFLICT');
-      expect(res.json().current.title).toBe('Título cambiado por el equipo');
+      expect(res.json().current).toEqual({ field: 'title', value: 'Título cambiado por el equipo' });
       expect((await getTestDb().backlogItem.findUniqueOrThrow({ where: { id: s.storyId } })).title).toBe('Título cambiado por el equipo');
       expect((await getTestDb().aiSuggestion.findUniqueOrThrow({ where: { id: field.suggestion!.id } })).status).toBe('PROPOSED');
     });
 
-    it('conflicto también en la planificación y en el proyecto', async () => {
+    it('se pueden aceptar varias recomendaciones seguidas del mismo artefacto (regresión: la segunda fallaba)', async () => {
+      const rec = await ok('BACKLOG_ITEM', s.storyId);
+      const cambios = rec.fields.filter((f) => f.suggestion);
+      expect(cambios.map((f) => f.field)).toEqual(['title', 'soThat']);
+      for (const field of cambios) {
+        const res = await resolver(field.suggestion!.id, { action: 'ACCEPT', confirm: true });
+        expect(res.statusCode, `${field.field}: ${res.body}`).toBe(200);
+      }
+      const item = await getTestDb().backlogItem.findUniqueOrThrow({ where: { id: s.storyId } });
+      expect(item.title).toContain('revisada por la IA simulada');
+      expect(item.soThat).toContain('revisada por la IA simulada');
+      expect(item.version).toBe(3);
+      expect(await getTestDb().aiSuggestion.count({ where: { status: 'ACCEPTED' } })).toBe(2);
+    });
+
+    it('varias recomendaciones seguidas también en la retrospectiva y en la Review', async () => {
+      await s.ana.client.put(`${s.base}/review`, { results: 'Se completaron 3 historias', increment: 'Formulario de asistencia', feedback: 'Piden un resumen semanal', goalAssessment: 'PARTIAL', goalAssessmentNote: 'Faltó el panel', expectedVersion: 1 });
+      const review = (await ok('SPRINT_REVIEW', s.sprintId)).fields.filter((f) => f.suggestion);
+      expect(review.length).toBeGreaterThan(1);
+      for (const f of review) expect((await resolver(f.suggestion!.id, { action: 'ACCEPT', confirm: true })).statusCode, f.field).toBe(200);
+      const saved = await getTestDb().sprintReview.findUniqueOrThrow({ where: { sprintId: s.sprintId } });
+      expect(saved.results).toContain('revisada por la IA simulada');
+      expect(saved.goalAssessmentNote).toContain('revisada por la IA simulada');
+    });
+
+    it('conflicto POR CAMPO: un cambio ajeno en OTRO campo no bloquea; en el MISMO campo sí (409) y no se sobrescribe', async () => {
       await fillPlan(s);
       const sprintRec = await ok('SPRINT', s.sprintId);
       const projectRec = await ok('PROJECT', s.projectId);
       const sprint = await getTestDb().sprint.findUniqueOrThrow({ where: { id: s.sprintId } });
+      // El equipo cambia el plan de trabajo; la propuesta es sobre el Sprint Goal (otro campo): se aplica.
       await s.ana.client.patch(s.base, { workPlan: `${sprint.workPlan} Y además pruebas.`, expectedVersion: sprint.version });
+      const goal = sprintRec.fields.find((f) => f.field === 'sprintGoal')!;
+      expect((await resolver(goal.suggestion!.id, { action: 'ACCEPT', confirm: true })).statusCode).toBe(200);
+      const after = await getTestDb().sprint.findUniqueOrThrow({ where: { id: s.sprintId } });
+      expect(after.workPlan).toContain('Y además pruebas.'); // el cambio ajeno se conserva
+      expect(after.sprintGoal).toContain('revisada por la IA simulada');
+
+      // El equipo cambia el Product Goal a mano; la propuesta es sobre ese mismo campo: conflicto.
       const project = (await s.ana.client.get(p())).json() as { name: string; description: string; productGoal: string; version: number };
       await s.ana.client.patch(p(), { name: project.name, description: project.description, productGoal: 'Cambiado a mano', expectedVersion: project.version });
-      expect((await resolver(sprintRec.fields.find((f) => f.suggestion)!.suggestion!.id, { action: 'ACCEPT', confirm: true })).statusCode).toBe(409);
-      expect((await resolver(projectRec.fields.find((f) => f.suggestion)!.suggestion!.id, { action: 'ACCEPT', confirm: true })).statusCode).toBe(409);
+      const res = await resolver(projectRec.fields.find((f) => f.field === 'productGoal')!.suggestion!.id, { action: 'ACCEPT', confirm: true });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('VERSION_CONFLICT');
+      expect(res.json().message).toMatch(/No se sobrescribió nada/);
       expect((await getTestDb().project.findUniqueOrThrow({ where: { id: s.projectId } })).productGoal).toBe('Cambiado a mano');
     });
 

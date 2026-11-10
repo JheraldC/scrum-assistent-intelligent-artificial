@@ -3,6 +3,7 @@ import { downloadFile } from '../../api/client';
 import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { Toast } from '../../components/ui/Toast';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { es } from '../../i18n/es';
 
 const DATASETS = [
@@ -46,10 +47,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       aria-labelledby="exportar-titulo"
       className="mb-8 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
     >
-      <h2 id="exportar-titulo" className="text-xl font-semibold">
-        {es.export.title}
-      </h2>
-      <p className="mb-3 text-sm text-[var(--color-muted)]">{es.export.intro}</p>
+      <PageHeader id="exportar-titulo" title={es.export.title} info={es.export.intro} />
       {error ? <ErrorBanner message={error} /> : null}
       <div className="mb-3">
         <label htmlFor="conjunto" className="block text-sm font-medium">

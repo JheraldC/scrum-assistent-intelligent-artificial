@@ -22,6 +22,15 @@ export interface ContextInput {
   definitionOfDone?: string;
   /** Sprint abierto: Sprint Goal, plan y elementos seleccionados con el avance de sus tareas. */
   sprint?: { goal: string; plan: string; items: { code: string; title: string; doneTasks: number; totalTasks: number }[] } | null;
+  /** Detalle completo de los elementos del backlog que la pregunta menciona o que están en el Sprint. */
+  itemDetails?: { code: string; title: string; asA?: string | null; iWant?: string | null; soThat?: string | null; description?: string | null; criteria: string[] }[];
+  /** Tareas del Sprint abierto (título, estado y elemento). */
+  tasks?: { title: string; status: string; itemCode: string | null }[];
+  /** Registros de seguimiento recientes del Sprint abierto. */
+  tracking?: { kind: string; content: string; resolved: boolean }[];
+  /** Review y retrospectiva del Sprint abierto (resumen de lo guardado). */
+  review?: { results: string; increment: string; feedback: string } | null;
+  retro?: { positives: string[]; problems: string[]; improvements: string[]; actions: string[] } | null;
   /** Product Backlog en orden de prioridad (resumen). */
   backlog?: { code: string; title: string; state: string; criteria: number }[];
   /** Decisiones y acuerdos recientes del proyecto (sin autores). */
@@ -72,6 +81,8 @@ function snapshotText(snapshot: Record<string, unknown>, maxChars: number): stri
 }
 
 interface Parts {
+  detailsN: number;
+  extrasN: number;
   backlogN: number;
   decisionsN: number;
   fragmentsN: number;
@@ -100,6 +111,33 @@ function render(input: ContextInput, parts: Parts): string {
           .join('\n')}`,
       );
     }
+  }
+  const details = (input.itemDetails ?? []).slice(0, parts.detailsN);
+  if (details.length > 0) {
+    project.push(
+      `Detalle de elementos del backlog:\n${details
+        .map((d) => {
+          const story = d.iWant ? `Como ${clean(d.asA ?? '', 120)}, quiero ${clean(d.iWant, 300)}${d.soThat ? `, para ${clean(d.soThat, 300)}` : ''}.` : clean(d.description ?? '', 400);
+          const criteria = d.criteria.length > 0 ? ` Criterios: ${d.criteria.slice(0, 8).map((c) => clean(c, 160)).join(' | ')}` : ' Sin criterios de aceptación.';
+          return `- ${clean(d.code, 12)} ${clean(d.title, 100)}: ${story}${criteria}`;
+        })
+        .join('\n')}`,
+    );
+  }
+  const tasks = (input.tasks ?? []).slice(0, parts.extrasN * 3);
+  if (tasks.length > 0) {
+    project.push(`Tareas del Sprint:\n${tasks.map((t) => `- [${clean(t.status, 10)}] ${clean(t.title, 120)}${t.itemCode ? ` (${clean(t.itemCode, 12)})` : ''}`).join('\n')}`);
+  }
+  const tracking = (input.tracking ?? []).slice(0, parts.extrasN);
+  if (tracking.length > 0) {
+    project.push(`Seguimiento reciente:\n${tracking.map((t) => `- [${clean(t.kind, 12)}${t.resolved ? ', resuelto' : ''}] ${clean(t.content, 200)}`).join('\n')}`);
+  }
+  if (parts.extrasN > 0 && input.review && (input.review.results || input.review.increment || input.review.feedback)) {
+    project.push(`Sprint Review: resultados: ${clean(input.review.results, 250)} | incremento: ${clean(input.review.increment, 250)} | retroalimentación: ${clean(input.review.feedback, 250)}`);
+  }
+  if (parts.extrasN > 0 && input.retro && [input.retro.positives, input.retro.problems, input.retro.improvements, input.retro.actions].some((l) => l.length > 0)) {
+    const list = (items: string[]) => items.slice(0, 5).map((i) => clean(i, 120)).join('; ') || '(nada)';
+    project.push(`Retrospectiva: positivos: ${list(input.retro.positives)} | problemas: ${list(input.retro.problems)} | mejoras: ${list(input.retro.improvements)} | acciones: ${list(input.retro.actions)}`);
   }
   const backlog = (input.backlog ?? []).slice(0, parts.backlogN);
   if (backlog.length > 0) {
@@ -163,6 +201,8 @@ function render(input: ContextInput, parts: Parts): string {
  */
 export function buildContext(input: ContextInput): BuiltContext {
   const parts: Parts = {
+    detailsN: 4,
+    extrasN: 6,
     backlogN: 12,
     decisionsN: 5,
     fragmentsN: 4,
@@ -182,6 +222,10 @@ export function buildContext(input: ContextInput): BuiltContext {
     parts.history = parts.history.slice(1); // se descarta el más antiguo
     text = render(input, parts);
   }
+  while (over() && parts.extrasN > 0) {
+    parts.extrasN = Math.floor(parts.extrasN / 2); // tareas, seguimiento, Review y retrospectiva
+    text = render(input, parts);
+  }
   while (over() && parts.decisionsN > 0) {
     parts.decisionsN -= 1;
     text = render(input, parts);
@@ -192,6 +236,10 @@ export function buildContext(input: ContextInput): BuiltContext {
   }
   while (over() && parts.fragmentsN > 1) {
     parts.fragmentsN -= 1; // se conservan primero los fragmentos más pertinentes
+    text = render(input, parts);
+  }
+  while (over() && parts.detailsN > 1) {
+    parts.detailsN -= 1;
     text = render(input, parts);
   }
   while (over() && parts.snapshotChars > 0) {

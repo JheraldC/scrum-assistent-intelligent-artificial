@@ -10,6 +10,8 @@ interface Props {
   suggestion: Suggestion;
   /** Se llama cuando la propuesta se aceptó o descartó (la pantalla recarga el proyecto). */
   onResolved: (result: ResolvedSuggestion) => void;
+  /** Dentro de una recomendación por campo: el nombre del campo ya se ve arriba, así que no se repite. */
+  embedded?: boolean;
 }
 
 type Mode = 'idle' | 'confirm' | 'edit';
@@ -19,22 +21,23 @@ const shown = (v: string | string[]) => {
   return text.trim() === '' ? es.panel.empty : text;
 };
 
-const selectClass = 'mt-1 block w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base';
+const selectClass = 'mt-1 block w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-sm';
 
 /**
- * Propuesta de la IA para revisar. Nada cambia hasta que una persona la confirma; antes se muestra
- * el cambio y su efecto, y se puede editar. Los textos de la IA se pintan siempre como texto plano.
+ * Propuesta de la IA para revisar. Nada cambia hasta que una persona la confirma: «Aceptar» muestra el
+ * efecto y pide confirmación; «Editar» permite ajustar el valor antes. Los textos de la IA se pintan
+ * siempre como texto plano.
  */
-export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
+export function SuggestionCard({ projectId, suggestion, onResolved, embedded }: Props) {
   const [mode, setMode] = useState<Mode>('idle');
+  const change = suggestion.change;
   const [title, setTitle] = useState(suggestion.title);
   const [asA, setAsA] = useState(suggestion.asA ?? '');
   const [iWant, setIWant] = useState(suggestion.iWant ?? '');
   const [soThat, setSoThat] = useState(suggestion.soThat ?? '');
   const [criteria, setCriteria] = useState(suggestion.acceptanceCriteria.join('\n'));
-  const [itemId, setItemId] = useState(suggestion.itemId ?? '');
-  const change = suggestion.change;
   const [value, setValue] = useState(change ? (Array.isArray(change.proposedValue) ? change.proposedValue.join('\n') : change.proposedValue) : '');
+  const [itemId, setItemId] = useState(suggestion.itemId ?? '');
   const [items, setItems] = useState<BacklogItem[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,64 +86,55 @@ export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
   }
 
   return (
-    <li data-suggestion={suggestion.id} data-kind={kind} className="rounded-md border border-[var(--color-ai)] bg-[var(--color-ai-bg)] p-2 text-sm text-[var(--color-ai)]">
+    <li data-suggestion={suggestion.id} data-kind={kind} className={`text-sm text-[var(--color-text)] ${embedded ? '' : 'rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2'}`}>
       {kind === 'FIELD_CHANGE' && change ? (
         <div data-field-change={change.field}>
-          <p className="font-semibold">
-            {change.fieldLabel} <span className="font-normal text-xs">· {change.artifactLabel}</span>
-          </p>
-          <div className="mt-1 grid gap-2 text-[var(--color-text)]">
-            <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
-              <p className="text-xs font-medium">{es.panel.current}</p>
-              <p className="whitespace-pre-wrap">{shown(change.currentValue)}</p>
-            </div>
-            <div className="rounded-md border border-[var(--color-ai)] bg-[var(--color-surface)] p-2">
-              <p className="text-xs font-medium">{es.panel.proposedValue}</p>
-              <p className="whitespace-pre-wrap">{shown(change.proposedValue)}</p>
-            </div>
+          {embedded ? null : (
+            <p className="text-xs text-[var(--color-muted)]">
+              {change.fieldLabel} · {change.artifactLabel}
+            </p>
+          )}
+          <div className="mt-1 grid gap-1">
+            <p className="rounded border border-[var(--color-border)] px-2 py-1 whitespace-pre-wrap">
+              <span className="block text-xs font-medium">{es.panel.current}</span>
+              {shown(change.currentValue)}
+            </p>
+            <p className="rounded bg-[var(--color-success-bg)] px-2 py-1 whitespace-pre-wrap">
+              <span className="block text-xs font-medium">{es.panel.proposedValue}</span>
+              {shown(change.proposedValue)}
+            </p>
           </div>
-          {change.rationale ? <p className="mt-1 text-xs">{change.rationale}</p> : null}
+          {change.rationale ? <p className="mt-1 text-xs text-[var(--color-muted)]">{change.rationale}</p> : null}
         </div>
       ) : (
-      <p className="font-semibold">
-        {es.panel.kinds[kind]}
-        {suggestion.itemCode ? <span className="font-mono"> · {suggestion.itemCode}</span> : null}
-      </p>
-      )}
-      {kind !== 'FIELD_CHANGE' && suggestion.title && suggestion.title !== suggestion.text ? <p className="font-medium">{suggestion.title}</p> : null}
-      {kind !== 'FIELD_CHANGE' ? <p className="whitespace-pre-wrap">{suggestion.text}</p> : null}
-      {kind === 'STORY' ? (
-        <p className="mt-1 text-xs">
-          {suggestion.asA ? `Como ${suggestion.asA}, ` : ''}
-          {suggestion.iWant ? `quiero ${suggestion.iWant}` : ''}
-          {suggestion.soThat ? `, para ${suggestion.soThat}` : ''}
-        </p>
-      ) : null}
-      {kind !== 'FIELD_CHANGE' && suggestion.acceptanceCriteria.length > 0 ? (
-        <ul className="mt-1 list-disc pl-5 text-xs">
-          {suggestion.acceptanceCriteria.map((c, i) => (
-            <li key={i}>{c}</li>
-          ))}
-        </ul>
-      ) : null}
-
-      <p className="mt-2 text-xs" hidden={kind === 'FIELD_CHANGE'}>
-        <strong>{es.panel.sources}:</strong>{' '}
-        {suggestion.basis === 'DOCUMENTO'
-          ? suggestion.sources.map((s) => `«${s.document}»${s.section ? `, ${s.section}` : ''}`).join('; ')
-          : es.panel.basisInference}
-      </p>
-
-      {suggestion.actionable ? (
-        <p className="mt-1 text-xs">
-          <strong>{es.panel.effect}:</strong> {suggestion.effect}
-        </p>
-      ) : (
-        <p className="mt-1 text-xs">{es.panel.informative}. {suggestion.effect}</p>
+        <>
+          <p className="text-xs font-semibold text-[var(--color-ai)]">
+            {es.panel.kinds[kind]}
+            {suggestion.itemCode ? <span className="font-mono"> · {suggestion.itemCode}</span> : null}
+          </p>
+          {suggestion.title && suggestion.title !== suggestion.text ? <p className="font-medium">{suggestion.title}</p> : null}
+          <p className="whitespace-pre-wrap">{suggestion.text}</p>
+          {kind === 'STORY' && suggestion.iWant ? (
+            <p className="mt-1 text-xs text-[var(--color-muted)]">
+              {suggestion.asA ? `Como ${suggestion.asA}, ` : ''}quiero {suggestion.iWant}
+              {suggestion.soThat ? `, para ${suggestion.soThat}` : ''}
+            </p>
+          ) : null}
+          {suggestion.acceptanceCriteria.length > 0 ? (
+            <ul className="mt-1 list-disc pl-5 text-xs">
+              {suggestion.acceptanceCriteria.map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ul>
+          ) : null}
+          <p className="mt-1 text-xs text-[var(--color-muted)]">
+            {suggestion.basis === 'DOCUMENTO' ? suggestion.sources.map((s) => `«${s.document}»${s.section ? `, ${s.section}` : ''}`).join('; ') : es.panel.basisInference}
+          </p>
+        </>
       )}
 
       {mode === 'edit' ? (
-        <div className="mt-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-text)]">
+        <div className="mt-2">
           {kind === 'FIELD_CHANGE' && change ? (
             <FormField
               multiline
@@ -166,7 +160,7 @@ export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
       ) : null}
 
       {needsItem && mode !== 'idle' ? (
-        <div className="mt-2 text-[var(--color-text)]">
+        <div className="mt-2">
           <label htmlFor={`dest-${suggestion.id}`} className="block text-xs font-medium">
             {es.panel.pickItem}
           </label>
@@ -181,43 +175,39 @@ export function SuggestionCard({ projectId, suggestion, onResolved }: Props) {
         </div>
       ) : null}
 
-      {mode === 'confirm' || mode === 'edit' ? (
-        <p className="mt-2 rounded-md bg-[var(--color-surface)] p-2 text-xs text-[var(--color-text)]">{es.panel.confirmText}</p>
+      {mode !== 'idle' ? (
+        <p className="mt-2 rounded bg-[var(--color-info-bg)] p-2 text-xs text-[var(--color-info)]">
+          {suggestion.effect} {es.panel.confirmText}
+        </p>
       ) : null}
       {error ? (
-        <p role="alert" className="mt-2 rounded-md bg-[var(--color-warning-bg)] p-2 text-xs text-[var(--color-warning)]">
+        <p role="alert" className="mt-2 rounded border border-[var(--color-danger)] bg-[var(--color-danger-bg)] p-2 text-xs font-medium text-[var(--color-danger)]">
           <span aria-hidden="true">⚠ </span>
           {error}
         </p>
       ) : null}
 
-      <div className="mt-2 flex flex-wrap gap-2 text-[var(--color-text)]">
+      <div className="mt-2 flex flex-wrap gap-2">
         {mode === 'idle' ? (
           <>
+            <Button size="sm" disabled={busy} onClick={() => void (suggestion.actionable ? openMode('confirm') : resolve('ACCEPT'))}>
+              {suggestion.actionable ? es.panel.accept : es.panel.markReviewed}
+            </Button>
             {suggestion.actionable ? (
-              <>
-                <Button variant="secondary" disabled={busy} onClick={() => void openMode('confirm')}>
-                  {es.panel.accept}
-                </Button>
-                <Button variant="secondary" disabled={busy} onClick={() => void openMode('edit')}>
-                  {es.panel.edit}
-                </Button>
-              </>
-            ) : (
-              <Button variant="secondary" disabled={busy} onClick={() => void openMode('confirm')}>
-                {es.panel.markReviewed}
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => void openMode('edit')}>
+                {es.panel.edit}
               </Button>
-            )}
-            <Button variant="secondary" disabled={busy} onClick={() => void resolve('DISCARD')}>
+            ) : null}
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => void resolve('DISCARD')}>
               {es.panel.discard}
             </Button>
           </>
         ) : (
           <>
-            <Button disabled={busy || (needsItem && !itemId)} onClick={() => void resolve('ACCEPT')}>
+            <Button size="sm" disabled={busy || (needsItem && !itemId)} onClick={() => void resolve('ACCEPT')}>
               {es.panel.confirm}
             </Button>
-            <Button variant="secondary" disabled={busy} onClick={() => setMode('idle')}>
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => setMode('idle')}>
               {es.panel.cancel}
             </Button>
           </>

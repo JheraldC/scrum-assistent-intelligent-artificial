@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { api } from '../../api/client';
 import type { ResolvedSuggestion } from '../../api/types';
 import { Button } from '../ui/Button';
-import { ErrorBanner } from '../ui/ErrorBanner';
-import { FormField } from '../ui/FormField';
-import { SourceBadge } from '../validation/SourceBadge';
+import { InfoTip } from '../ui/InfoTip';
 import { es } from '../../i18n/es';
 import { useAssistant } from './AssistantContext';
-import { ContextUsed, EvaluationCard, RecommendationCard } from './PanelCards';
+import { ChatReplyCard, EvaluationCard, RecommendationCard } from './PanelCards';
 import { SuggestionCard } from './SuggestionCard';
 
 const WIDTH_KEY = 'asistente-ancho';
@@ -35,44 +34,56 @@ function readWidth(): number {
   }
 }
 
-
-/** Contenido del asistente: conversación, evaluaciones, recomendaciones, propuestas y formulario. */
+/** Conversación del asistente: preguntas, respuestas, evaluaciones por reglas, recomendaciones y propuestas. */
 function AssistantBody() {
   const { projectId, focus, draft, setDraft, messages, pending, busy, send, removePending, notifyChanged, recommend } = useAssistant();
   const [text, setText] = useState('');
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [discarding, setDiscarding] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Otra pantalla puede dejar una pregunta preparada; la persona decide si la envía.
   useEffect(() => {
     if (draft) {
       setText(draft);
       setDraft('');
+      inputRef.current?.focus();
     }
   }, [draft, setDraft]);
 
   // La conversación se desplaza al último mensaje.
   useEffect(() => {
     logRef.current?.scrollTo?.({ top: logRef.current.scrollHeight });
-  }, [messages.length]);
+  }, [messages.length, busy, notice]);
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function submit() {
     const question = text.trim();
-    if (!question) return;
+    if (!question || busy) return;
     setText('');
     setNotice(null);
     await send(question);
   }
+  const onSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    void submit();
+  };
+  // Enter envía; Mayús+Enter inserta un salto de línea (no se envía mientras se compone texto con IME).
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void submit();
+    }
+  };
 
   function onResolved(result: ResolvedSuggestion) {
     removePending(result.suggestion.id);
     if (result.suggestion.status === 'ACCEPTED') {
       const gate = result.revalidation ? ` ${es.panel.revalidated}: ${result.revalidation.status === 'PASSED' ? es.gate.passed : es.gate.failed}.` : '';
-      setNotice(`${es.panel.applied}${gate}`);
+      setNotice({ ok: true, text: `${es.panel.applied}${gate}` });
       notifyChanged();
     } else {
-      setNotice(es.panel.discarded);
+      setNotice({ ok: true, text: es.panel.discarded });
     }
   }
 
@@ -82,129 +93,117 @@ function AssistantBody() {
   const modifying = loose.filter((x) => x.actionable);
   const informative = loose.filter((x) => !x.actionable);
 
+  async function discardAll() {
+    setDiscarding(true);
+    for (const suggestion of loose) {
+      try {
+        await api(`/projects/${projectId}/agent/suggestions/${suggestion.id}/resolve`, { method: 'POST', body: { action: 'DISCARD' } });
+        removePending(suggestion.id);
+      } catch {
+        // Si una ya fue resuelta por otra persona, se quita igualmente de la lista al recargar.
+        removePending(suggestion.id);
+      }
+    }
+    setDiscarding(false);
+    setNotice({ ok: true, text: es.panel.allDiscarded });
+  }
+
   return (
     <>
-      <div className="border-b border-[var(--color-border)] p-3">
-        <p className="text-xs text-[var(--color-muted)]">{es.assistant.intro}</p>
-        <p className="mt-1 text-xs text-[var(--color-muted)]">{es.assistant.privacy}</p>
-        <p className="mt-1 text-xs text-[var(--color-muted)]">
-          {es.assistant.context}: <strong>{focus ? focus.label : es.assistant.wholeProject}</strong>
-        </p>
-        <details className="mt-1 text-xs text-[var(--color-muted)]">
-          <summary className="min-h-6 cursor-pointer">{es.panel.providerNotice}</summary>
-          <p className="mt-1">
-            Para responder, el contenido pertinente de este proyecto (datos del Sprint, Product Backlog, decisiones y fragmentos de los documentos marcados para la IA) se envía al proveedor externo de IA configurado. No se envía información de otros proyectos ni credenciales.
-          </p>
-        </details>
-      </div>
+      <p className="border-b border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-muted)]">
+        {es.assistant.context}: <strong className="text-[var(--color-text)]">{focus ? focus.label : es.assistant.wholeProject}</strong>
+      </p>
 
-      <div ref={logRef} role="log" aria-live="polite" aria-label="Conversación" className="flex-1 space-y-3 overflow-y-auto p-3">
-        {messages.length === 0 ? <p className="text-sm text-[var(--color-muted)]">{es.assistant.empty}</p> : null}
+      <div ref={logRef} role="log" aria-live="polite" aria-label="Conversación" className="flex-1 space-y-2 overflow-y-auto p-3">
+        {messages.length === 0 && loose.length === 0 ? <p className="text-sm text-[var(--color-muted)]">{es.assistant.empty}</p> : null}
         {messages.map((message) => {
           switch (message.kind) {
             case 'user':
               return (
-                <div key={message.id} className="rounded-md bg-[var(--color-info-bg)] p-2 text-sm text-[var(--color-info)]">
-                  <strong>{es.assistant.you}:</strong> {message.text}
+                <div key={message.id} data-user-message className="ml-8 rounded-lg rounded-tr-none bg-[var(--color-primary)] p-2 text-sm text-[var(--color-primary-contrast)]">
+                  <span className="sr-only">{es.assistant.you}: </span>
+                  <span className="whitespace-pre-wrap">{message.text}</span>
                 </div>
               );
             case 'system':
               return (
-                <p key={message.id} className="text-xs italic text-[var(--color-muted)]">
+                <p key={message.id} className="text-center text-xs text-[var(--color-muted)]">
                   {message.text}
                 </p>
               );
             case 'error':
-              return <ErrorBanner key={message.id} message={message.text} />;
+              return (
+                <p key={message.id} role="alert" className="mr-6 rounded-lg border-2 border-[var(--color-danger)] bg-[var(--color-danger-bg)] p-2 text-sm font-medium text-[var(--color-danger)]">
+                  <span aria-hidden="true">⚠ </span>
+                  {message.text}
+                </p>
+              );
             case 'evaluation':
               return <EvaluationCard key={message.id} message={message} onRecommend={(a) => void recommend(a)} />;
             case 'recommendation':
               return <RecommendationCard key={message.id} message={message} projectId={projectId} onResolved={onResolved} />;
             case 'ai':
-              return (
-                <div key={message.id} data-ai-reply className="rounded-md border border-[var(--color-ai)] bg-[var(--color-ai-bg)] p-2 text-sm text-[var(--color-ai)]">
-                  <p className="mb-1">
-                    <SourceBadge source="AI_RECOMMENDATION" />
-                  </p>
-                  <p className="whitespace-pre-wrap">{message.reply.answer}</p>
-                  {message.reply.suggestions.length > 0 ? (
-                    <>
-                      <h3 className="mt-2 font-semibold">{es.assistant.suggestions}</h3>
-                      <ul className="list-disc pl-5">
-                        {message.reply.suggestions.map((s, i) => (
-                          <li key={i}>
-                            <span className="font-mono text-xs">{s.target}</span>: {s.text}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  ) : null}
-                  {message.reply.referencedCriteria.length > 0 ? (
-                    <p className="mt-2 text-xs">
-                      {es.assistant.criteria}: {message.reply.referencedCriteria.join(', ')}
-                    </p>
-                  ) : null}
-                  <p className="mt-2 text-xs">
-                    <strong>{es.panel.sources}:</strong>{' '}
-                    {message.reply.basis === 'DOCUMENTO'
-                      ? message.reply.sources.map((s) => `«${s.document}»${s.section ? `, ${s.section}` : ''}`).join('; ')
-                      : es.panel.basisInference}
-                  </p>
-                  <ContextUsed used={message.reply.contextUsed} />
-                  <p className="mt-2 text-xs">{message.reply.disclaimer}</p>
-                  <p className="text-xs opacity-80">
-                    {es.assistant.model}: {message.reply.model}
-                  </p>
-                </div>
-              );
+              return <ChatReplyCard key={message.id} reply={message.reply} />;
           }
         })}
-        {busy ? <p role="status" className="text-sm text-[var(--color-muted)]">{es.assistant.thinking}</p> : null}
+        {busy ? (
+          <p role="status" className="mr-6 rounded-lg border border-[var(--color-ai)] bg-[var(--color-ai-bg)] p-2 text-sm text-[var(--color-ai)]">
+            {es.assistant.thinking}
+          </p>
+        ) : null}
         {notice ? (
           <p role="status" className="rounded-md bg-[var(--color-success-bg)] p-2 text-sm text-[var(--color-success)]">
             <span aria-hidden="true">✓ </span>
-            {notice}
+            {notice.text}
           </p>
         ) : null}
 
-        {modifying.length > 0 ? (
-          <section aria-labelledby="propuestas-titulo">
-            <h3 id="propuestas-titulo" className="font-semibold">
-              {es.panel.modifying} ({modifying.length})
-            </h3>
-            <p className="mb-2 text-xs text-[var(--color-muted)]">{es.panel.proposalHelp}</p>
-            <ul className="space-y-2">
-              {modifying.map((suggestion) => (
-                <SuggestionCard key={suggestion.id} projectId={projectId} suggestion={suggestion} onResolved={onResolved} />
-              ))}
-            </ul>
-          </section>
-        ) : null}
-        {informative.length > 0 ? (
-          <section aria-labelledby="informativas-titulo">
-            <h3 id="informativas-titulo" className="font-semibold">
-              {es.panel.informativeTitle} ({informative.length})
-            </h3>
-            <ul className="mt-1 space-y-2">
-              {informative.map((suggestion) => (
-                <SuggestionCard key={suggestion.id} projectId={projectId} suggestion={suggestion} onResolved={onResolved} />
-              ))}
-            </ul>
+        {loose.length > 0 ? (
+          <section aria-labelledby="propuestas-titulo" className="rounded-lg border border-[var(--color-border)] p-2">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <h3 id="propuestas-titulo" className="flex items-center gap-2 text-sm font-semibold">
+                {es.panel.proposals} ({loose.length}) <InfoTip text={es.panel.proposalHelp} />
+              </h3>
+              <Button size="sm" variant="secondary" disabled={discarding} onClick={() => void discardAll()}>
+                {es.panel.discardAll}
+              </Button>
+            </div>
+            {modifying.length > 0 ? (
+              <>
+                <p className="mb-1 text-xs font-medium text-[var(--color-muted)]">{es.panel.modifying}</p>
+                <ul className="space-y-2">
+                  {modifying.map((suggestion) => (
+                    <SuggestionCard key={suggestion.id} projectId={projectId} suggestion={suggestion} onResolved={onResolved} />
+                  ))}
+                </ul>
+              </>
+            ) : null}
+            {informative.length > 0 ? (
+              <>
+                <p className="mb-1 mt-2 text-xs font-medium text-[var(--color-muted)]">{es.panel.informativeTitle}</p>
+                <ul className="space-y-2">
+                  {informative.map((suggestion) => (
+                    <SuggestionCard key={suggestion.id} projectId={projectId} suggestion={suggestion} onResolved={onResolved} />
+                  ))}
+                </ul>
+              </>
+            ) : null}
           </section>
         ) : null}
       </div>
 
-      <form onSubmit={onSubmit} noValidate className="border-t border-[var(--color-border)] p-3">
-        <p className="mb-2 text-xs text-[var(--color-muted)]">{es.assistant.notGuaranteed}</p>
-        <FormField
-          multiline
+      <form onSubmit={onSubmit} noValidate className="flex items-end gap-2 border-t border-[var(--color-border)] p-2">
+        <textarea
+          ref={inputRef}
+          aria-label={es.assistant.question}
+          title={es.panel.enterHint}
           rows={2}
-          label={es.assistant.question}
-          name="pregunta"
+          maxLength={2000}
           placeholder={es.assistant.placeholder}
           value={text}
-          maxLength={2000}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          className="block min-h-11 w-full flex-1 resize-none rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
         />
         <Button type="submit" disabled={busy || text.trim() === ''}>
           {es.assistant.send}
@@ -270,13 +269,24 @@ export function AssistantDock({ children }: { children: React.ReactNode }) {
   };
 
   const header = (
-    <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] p-3">
-      <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
-        {es.panel.title} <SourceBadge source="AI_RECOMMENDATION" />
+    <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-2">
+      <h2 className="flex items-center gap-2 text-base font-semibold">
+        <span aria-hidden="true" className="text-[var(--color-ai)]">
+          ✦
+        </span>
+        {es.panel.title}
+        <InfoTip text={es.panel.about} />
       </h2>
-      <Button variant="secondary" onClick={() => { setOpen(false); openerRef.current?.focus(); }} aria-label={desktop ? es.panel.collapse : es.panel.close}>
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={() => {
+          setOpen(false);
+          openerRef.current?.focus();
+        }}
+        aria-label={desktop ? es.panel.collapse : es.panel.close}
+      >
         <span aria-hidden="true">{desktop ? '»' : '✕'}</span>
-        <span className="sr-only">{desktop ? es.panel.collapse : es.panel.close}</span>
       </Button>
     </div>
   );
@@ -309,7 +319,7 @@ export function AssistantDock({ children }: { children: React.ReactNode }) {
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            className="mx-1 w-2 shrink-0 cursor-col-resize self-stretch rounded bg-[var(--color-border)] hover:bg-[var(--color-ai)] focus-visible:bg-[var(--color-ai)]"
+            className="mx-1 w-1.5 shrink-0 cursor-col-resize self-stretch rounded bg-[var(--color-border)] hover:bg-[var(--color-ai)] focus-visible:bg-[var(--color-ai)]"
           />
         ) : null}
         <aside

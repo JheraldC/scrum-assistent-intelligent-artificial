@@ -10,6 +10,7 @@ import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { TasksPanel } from '../../components/team/TasksPanel';
 import { GateStateBadge } from '../../components/validation/GateStateBadge';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
 
@@ -81,10 +82,7 @@ function ScrumMasterPanel({ projectId }: { projectId: string }) {
       )}
 
       <section className="mb-4" aria-labelledby="sm-atencion">
-        <h3 id="sm-atencion" className="text-lg font-semibold">
-          {es.views.attention}
-        </h3>
-        <p className="mb-2 text-sm text-[var(--color-muted)]">{es.views.attentionNote}</p>
+        <PageHeader level={3} id="sm-atencion" title={es.views.attention} info={es.views.attentionNote} />
         {data.attention.length === 0 ? <p>{es.views.noAttention}</p> : null}
         <ul className="space-y-1">
           {data.attention.map((a) => (
@@ -315,8 +313,7 @@ export function ViewsPage() {
 
   return (
     <section className="max-w-4xl">
-      <h2 className="mb-1 text-xl font-semibold">{es.views.title}</h2>
-      <p className="mb-3 text-sm text-[var(--color-muted)]">{es.views.intro}</p>
+      <PageHeader title={es.views.title} info={es.views.intro} />
       <div role="tablist" aria-label={es.views.title} className="mb-4 flex flex-wrap gap-1 border-b border-[var(--color-border)]">
         {ROLES.map((r) => {
           const isMine = mine.includes(Object.entries(BY_RESPONSIBILITY).find(([, v]) => v === r)![0] as ScrumResponsibilityValue);

@@ -602,23 +602,11 @@ paths:
       parameters: [{ name: version, in: query, schema: { type: integer, minimum: 1 } }]
       responses:
         '200': { description: Archivo, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
-  /projects/{projectId}/sprints/{sprintId}/stages/{stageType}/evidence/file:
-    parameters: [{ $ref: '#/components/parameters/projectId' }, { $ref: '#/components/parameters/sprintId' }, { name: stageType, in: path, required: true, schema: { type: string } }]
-    post:
-      tags: [Artefactos del Sprint]
-      summary: Registrar evidencia con un archivo adjunto opcional (.md, .txt, .pdf, .png, .jpg; máx. 5 MB). La aplicación NO verifica su contenido.
-      requestBody:
-        required: true
-        content: { multipart/form-data: { schema: { type: object, required: [file], properties: { note: { type: string, maxLength: 2000 }, file: { type: string, format: binary } } } } }
-      responses:
-        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/Evidence' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
   /projects/{projectId}/sprints/{sprintId}/stages/{stageType}/evidence/{evidenceId}/file:
     parameters: [{ $ref: '#/components/parameters/projectId' }, { $ref: '#/components/parameters/sprintId' }, { name: stageType, in: path, required: true, schema: { type: string } }, { name: evidenceId, in: path, required: true, schema: { type: string, format: uuid } }]
     get:
       tags: [Artefactos del Sprint]
-      summary: Descargar el archivo adjunto de una evidencia (solo miembros)
+      summary: Descargar un adjunto de evidencia guardado antes de retirar la subida de archivos (solo miembros). Ya no se pueden subir adjuntos nuevos.
       responses:
         '200': { description: Archivo, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
 

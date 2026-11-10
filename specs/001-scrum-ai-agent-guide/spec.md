@@ -309,3 +309,12 @@ Requisitos añadidos después del MVP. La IA recomienda; las personas deciden; l
 - **FR-053**: El **Product Backlog** presenta «Nueva historia» como acción principal; los elementos generales existentes se conservan y solo se crean desde una opción secundaria explicada.
 - **FR-054**: Las vistas muestran el plan de trabajo a Developers y una sección compartida de decisiones y acuerdos; las preguntas de facilitación del Scrum Master se envían solas al asistente.
 - **FR-055**: La creación inicial concurrente de la retrospectiva y de la Review es atómica: dos actualizaciones simultáneas con la misma versión producen 200 y 409 (nunca 500).
+
+## Mejora 2026-11 (3): usabilidad y robustez del asistente
+
+- **FR-056**: La ayuda de pantallas y campos se muestra bajo demanda en un icono «i» (ratón, teclado o toque); las pantallas no llevan párrafos explicativos fijos.
+- **FR-057**: Los campos obligatorios se marcan y, si quedan vacíos o el servidor devuelve un error, el campo y el mensaje se muestran en rojo con icono y texto.
+- **FR-058**: En el asistente, los mensajes de la persona y los de la IA tienen colores claramente distintos; Enter envía y Mayús+Enter inserta un salto de línea; lo secundario (contexto usado, aviso, modelo) queda plegado.
+- **FR-059**: Las propuestas de una misma recomendación se pueden aceptar consecutivamente: el conflicto se evalúa por campo y solo bloquea si ese campo cambió entretanto.
+- **FR-060**: La salida del modelo se sanea en lugar de descartarse (claves desconocidas ignoradas, límites recortados, texto de un JSON cortado rescatado, texto plano aceptado en el chat); nunca se obedecen claves de control. El asistente recibe el detalle de los elementos mencionados por su código y lo ya guardado del Sprint (tareas, seguimiento, Review y retrospectiva).
+- **FR-061**: Se retira la subida de archivos como evidencia de etapa (FR-045 queda sin efecto para subidas nuevas); los adjuntos existentes se conservan y se pueden descargar.

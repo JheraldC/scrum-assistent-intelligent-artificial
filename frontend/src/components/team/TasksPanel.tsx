@@ -10,6 +10,7 @@ import { useAssistantChanges } from '../agent/AssistantContext';
 import { Button } from '../ui/Button';
 import { ErrorBanner } from '../ui/ErrorBanner';
 import { FormField } from '../ui/FormField';
+import { PageHeader } from '../ui/PageHeader';
 import { Toast } from '../ui/Toast';
 
 interface Props {
@@ -74,10 +75,7 @@ export function TasksPanel({ projectId, sprintId, itemIds, onChanged }: Props) {
 
   return (
     <section aria-labelledby="tareas-titulo" className="mt-8" data-tasks>
-      <h3 id="tareas-titulo" className="text-lg font-semibold">
-        {es.team.tasks}
-      </h3>
-      <p className="mb-3 text-sm text-[var(--color-muted)]">{es.team.tasksHelp}</p>
+      <PageHeader level={3} id="tareas-titulo" title={es.team.tasks} info={es.team.tasksHelp} />
       {tasks.error ? <ErrorBanner message={tasks.error.message} onRetry={tasks.reload} /> : null}
       {failure && Object.keys(failure.fields).length === 0 ? <ErrorBanner message={failure.message} /> : null}
 
@@ -129,7 +127,7 @@ export function TasksPanel({ projectId, sprintId, itemIds, onChanged }: Props) {
 
       <form onSubmit={onAdd} noValidate className="rounded-md border border-dashed border-[var(--color-border)] p-3">
         <h4 className="mb-2 font-medium">{es.team.newTask}</h4>
-        <FormField label={es.team.taskTitle} name="titulo-tarea" value={title} onChange={(e) => setTitle(e.target.value)} error={failure?.fields.title} />
+        <FormField label={es.team.taskTitle} name="titulo-tarea" required value={title} onChange={(e) => setTitle(e.target.value)} error={failure?.fields.title} />
         <div className="mb-3 grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="tarea-elemento" className="block text-sm font-medium">

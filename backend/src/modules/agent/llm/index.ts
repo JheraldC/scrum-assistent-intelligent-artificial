@@ -14,5 +14,6 @@ export function createLlmProvider(config: Config): LlmProvider {
     apiKey: config.LLM_API_KEY!,
     model: config.LLM_MODEL!,
     timeoutMs: config.LLM_TIMEOUT_MS,
+    reasoningEffort: config.LLM_REASONING_EFFORT,
   });
 }

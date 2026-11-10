@@ -26,6 +26,7 @@ test.describe('US2: historias de usuario y evaluación', () => {
     await expect(panel.getByText(/rápido/i).first()).toBeVisible();
     // Etiquetas de origen y de fuente.
     await expect(panel.getByText('Criterio adicional del prototipo').first()).toBeVisible();
+    await panel.getByText(/Ver \d+ criterio/).click(); // los criterios cumplidos van plegados
     await expect(panel.getByText('Oficial de Scrum').first()).toBeVisible();
     await expect(panel.getByText('Comprobación por reglas').first()).toBeVisible();
     await expectAccessible(page);

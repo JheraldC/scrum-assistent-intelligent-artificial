@@ -25,3 +25,13 @@
 - **Consecuencias**: cada «Pedir recomendación» consume presupuesto de IA; las propuestas viven en `ai_suggestion` hasta que una
   persona las resuelve; el esquema de campos editables es un registro explícito que hay que ampliar al añadir artefactos.
 - **Requisitos relacionados**: FR-050 … FR-055.
+
+## Actualización (2026-11-10): conflicto por campo y salida saneada
+
+- El control de versión al aplicar una propuesta `FIELD_CHANGE` pasó de «la versión del artefacto no debe haber cambiado» a
+  «**ese campo** no debe haber cambiado»: todas las propuestas de una recomendación compartían la versión base y la segunda
+  aceptación fallaba siempre. La escritura sigue usando la versión vigente leída en la misma transacción.
+- Añadir criterios de aceptación es una fusión con los vigentes, así que se aplica sobre la versión actual.
+- La salida del modelo se sanea en lugar de rechazarse entera (el modelo real devolvía claves de más o JSON cortado y el chat
+  fallaba con «respuesta que no se pudo usar»). Las claves desconocidas se ignoran, nunca se obedecen.
+- Se retiró la subida de archivos como evidencia a pedido del equipo; la descarga de los existentes se conserva.

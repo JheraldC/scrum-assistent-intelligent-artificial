@@ -166,9 +166,6 @@ describe('contrato OpenAPI frente a la implementación (T142)', () => {
     expectContract('/projects/{projectId}/documents', 'POST', doc);
     expectContract('/projects/{projectId}/documents', 'GET', await s.ana.client.get(`${p()}/documents`));
 
-    const ev = await s.ana.client.upload(`${s.base}/stages/PLANNING/evidence/file`, { name: 'acta.md', data: '# Acta' }, { note: 'Acta' });
-    expectContract('/projects/{projectId}/sprints/{sprintId}/stages/{stageType}/evidence/file', 'POST', ev);
-
     const chat = await s.ana.client.post(`${p()}/agent/chat`, { message: 'PROPUESTA-IA-SIMULADA ¿Cómo justificar una falta con certificado?' });
     expectContract('/projects/{projectId}/agent/chat', 'POST', chat);
     expectContract('/projects/{projectId}/agent/recommend', 'POST', await s.ana.client.post(`${p()}/agent/recommend`, { artifactType: 'BACKLOG_ITEM', artifactId: s.storyId }));

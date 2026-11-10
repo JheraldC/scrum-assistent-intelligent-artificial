@@ -364,8 +364,12 @@ export class AgentService {
     // Contexto progresivo: solo lo que existe y pertenece a ESTE proyecto.
     const sprint = await db.sprint.findFirst({
       where: { projectId, status: 'OPEN' },
-      include: { items: { include: { backlogItem: true } }, tasks: true },
+      include: { items: { include: { backlogItem: true } }, tasks: { include: { backlogItem: { select: { code: true } } }, orderBy: { createdAt: 'asc' } } },
     });
+    // Todo lo ya guardado del Sprint abierto: seguimiento, Review y retrospectiva.
+    const tracking = sprint ? await db.trackingEntry.findMany({ where: { sprintId: sprint.id }, orderBy: { createdAt: 'desc' }, take: 8 }) : [];
+    const review = sprint ? await db.sprintReview.findUnique({ where: { sprintId: sprint.id } }) : null;
+    const retro = sprint ? await db.retrospective.findUnique({ where: { sprintId: sprint.id }, include: { actions: true } }) : null;
     const backlogRows = await db.backlogItem.findMany({ where: { projectId }, orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }], take: 30 });
     const runs = await latestRuns(db, projectId, 'BACKLOG_ITEM', backlogRows.map((b) => b.id));
     const decisions = (await listDecisions(db, projectId)).slice(0, 5);
@@ -395,6 +399,17 @@ export class AgentService {
         const state = deriveGateState(run ? { status: run.status, targetVersion: run.targetVersion, hasException: run.hasException } : null, b.version);
         return { code: b.code, title: b.title, state, criteria: b.acceptanceCriteria.length };
       }),
+      // Detalle completo de los elementos que la pregunta menciona por su código (HU-2…) y de los seleccionados en el Sprint.
+      itemDetails: (() => {
+        const mentioned = new Set((request.message.toUpperCase().match(/\b(?:HU|EL)-\d+\b/g) ?? []));
+        const selected = new Set(sprint?.items.map((i) => i.backlogItemId) ?? []);
+        const pick = [...backlogRows.filter((b) => mentioned.has(b.code.toUpperCase())), ...backlogRows.filter((b) => selected.has(b.id) && !mentioned.has(b.code.toUpperCase()))];
+        return pick.slice(0, 4).map((b) => ({ code: b.code, title: b.title, asA: b.asA, iWant: b.iWant, soThat: b.soThat, description: b.description, criteria: b.acceptanceCriteria }));
+      })(),
+      tasks: (sprint?.tasks ?? []).map((t) => ({ title: t.title, status: t.status, itemCode: t.backlogItem?.code ?? null })),
+      tracking: tracking.map((e) => ({ kind: e.kind, content: e.content, resolved: e.resolvedAt !== null })),
+      review: review ? { results: review.results, increment: review.increment, feedback: review.feedback } : null,
+      retro: retro ? { positives: retro.positives, problems: retro.problems, improvements: retro.improvements, actions: retro.actions.map((a) => `${a.description} [${a.status}]`) } : null,
       decisions: decisions.map((d) => ({ kind: d.kind, text: d.text })),
       attention,
       documents: {
@@ -410,6 +425,10 @@ export class AgentService {
       ...(project.definitionOfDone.trim() !== '' ? ['Definition of Done'] : []),
       ...(sprint ? ['Sprint activo y su Sprint Goal'] : []),
       ...(backlogRows.length > 0 ? [`Product Backlog (${backlogRows.length} elemento(s))`] : []),
+      ...((sprint?.tasks.length ?? 0) > 0 ? [`Tareas del Sprint (${sprint!.tasks.length})`] : []),
+      ...(tracking.length > 0 ? ['Seguimiento del Sprint'] : []),
+      ...(review && (review.results || review.feedback) ? ['Sprint Review'] : []),
+      ...(retro && (retro.positives.length > 0 || retro.actions.length > 0) ? ['Retrospectiva'] : []),
       ...(decisions.length > 0 ? [`Decisiones y acuerdos (${decisions.length})`] : []),
       ...(attention.length > 0 ? ['Asuntos detectados por reglas'] : []),
     ];
@@ -593,7 +612,7 @@ export class AgentService {
       if (parsed.ok) return { ok: true, value: parsed.value as T, status: 'OK', ...acc };
       if (repairTried) return fail('INVALID_RESPONSE', parsed.reason);
       repairTried = true; // un único reintento de reparación
-      userPrompt = `${original}\n\nTu respuesta anterior no cumplió el formato JSON requerido (${parsed.reason}). Responde de nuevo SOLO con el JSON válido.`;
+      userPrompt = `${original}\n\nTu respuesta anterior no cumplió el formato JSON requerido (${parsed.reason}). Responde de nuevo SOLO con el JSON válido, completo y más breve.`;
     }
   }
 }

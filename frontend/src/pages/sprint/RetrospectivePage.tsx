@@ -15,6 +15,7 @@ import { Toast } from '../../components/ui/Toast';
 import { VersionConflictDialog } from '../../components/ui/VersionConflictDialog';
 import { ExceptionDialog } from '../../components/validation/ExceptionDialog';
 import { GateStateBadge } from '../../components/validation/GateStateBadge';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
 
@@ -336,15 +337,11 @@ export function RetrospectivePage() {
 
   return (
     <section className="max-w-3xl">
-      <h2 className="mb-1 text-xl font-semibold">
-        {es.retro.title} · {es.flow.sprintLabel} {sprint.number}
-      </h2>
-      <p className="mb-2 text-sm text-[var(--color-muted)]">{es.retro.intro}</p>
+      <PageHeader title={`${es.retro.title} · ${es.flow.sprintLabel} ${sprint.number}`} info={`${es.retro.intro} ${es.retro.gateBlocks}`} />
       <CeremonyHelp ceremony="RETROSPECTIVE" />
       <p className="mb-2">
         <GateStateBadge state={gateState} />
       </p>
-      <p className="mb-4 text-sm text-[var(--color-muted)]">{es.retro.gateBlocks}</p>
 
       {failure && Object.keys(failure.fields).length === 0 ? <ErrorBanner message={failure.message} /> : null}
       {conflict ? (

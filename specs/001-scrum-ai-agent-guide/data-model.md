@@ -377,3 +377,7 @@ Migración `20261110061047_responsabilidades_documentos_tareas_sugerencias` (adi
 ### Mejora 2026-11 (2): cambios
 
 Migración `20261110120000_recomendaciones_por_campo` (aditiva): `agent_kind` añade `RECOMMENDATION` y `suggestion_kind` añade `FIELD_CHANGE`. El campo `ai_suggestion.payload` de una propuesta `FIELD_CHANGE` guarda `{ artifactType, artifactId, field, currentValue, proposedValue, rationale, basis, criterionIds }` y `target_version` la versión del artefacto sobre la que se recomendó.
+
+### Mejora 2026-11 (3)
+
+Sin migraciones. La tabla `evidence_attachment` se conserva para los adjuntos ya guardados, pero la aplicación ya no crea filas nuevas (la subida de archivos como evidencia se retiró).

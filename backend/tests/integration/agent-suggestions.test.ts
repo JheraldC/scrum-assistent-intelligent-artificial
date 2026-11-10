@@ -92,6 +92,19 @@ describe('asistente: contexto de documentos y sugerencias revisables', () => {
       }
     });
 
+    it('la IA recibe lo ya guardado: detalle del elemento mencionado (HU-2), tareas, seguimiento, Review y retrospectiva', async () => {
+      await s.ana.client.post(`${p()}/backlog`, { kind: 'USER_STORY', title: 'Inicio de sesión como donador', asA: 'donador', iWant: 'iniciar sesión con mi correo y contraseña', soThat: 'puedo ver mis donaciones', acceptanceCriteria: ['Muestra un error si la contraseña es incorrecta'], priority: 2 });
+      await fillPlan(s);
+      await s.ana.client.post(`${s.base}/tasks`, { title: 'Diseñar el formulario de acceso' });
+      await s.ana.client.put(`${s.base}/review`, { results: 'Se terminó el registro', increment: 'Formulario', feedback: 'Piden recordar la sesión', goalAssessment: null, goalAssessmentNote: '', expectedVersion: 1 });
+      await s.ana.client.put(`${s.base}/retrospective`, { positives: ['Buena comunicación'], problems: ['Reuniones largas'], improvements: [], expectedVersion: 1 });
+      const reply = await preguntar('HU-2 Inicio de sesión como donador: ¿qué plan de trabajo recomiendas para este elemento?');
+      for (const expected of ['HU-2 Inicio de sesión como donador: Como donador, quiero iniciar sesión con mi correo y contraseña', 'Muestra un error si la contraseña es incorrecta', 'Diseñar el formulario de acceso', 'Piden recordar la sesión', 'Reuniones largas']) {
+        expect(prompt()).toContain(expected);
+      }
+      expect(reply.contextUsed.projectData).toEqual(expect.arrayContaining(['Tareas del Sprint (1)', 'Sprint Review', 'Retrospectiva']));
+    });
+
     it('envía solo fragmentos pertinentes de documentos activos y los cita con documento y sección', async () => {
       await subirDoc('Reglas', REGLAS);
       const reply = await preguntar(PROPONER);
@@ -169,7 +182,7 @@ describe('asistente: contexto de documentos y sugerencias revisables', () => {
       const reply = await preguntar(PROPONER);
       const [story, criteria, task] = reply.proposals;
       expect(story!.effect).toMatch(/Se creará la historia/);
-      expect(criteria!.effect).toMatch(/Se añadirán 1 criterio\(s\).*HU-1.*conflicto/);
+      expect(criteria!.effect).toMatch(/Se añadirán 1 criterio\(s\).*HU-1.*se suman/);
       expect(task!.effect).toMatch(/sin responsable asignado/);
     });
 
@@ -196,12 +209,12 @@ describe('asistente: contexto de documentos y sugerencias revisables', () => {
       expect(reply.proposals[0]!.effect).toMatch(/Elija el elemento/);
     });
 
-    it('una salida con campos no permitidos (p. ej. asignar personas) se rechaza como inválida', async () => {
-      const bad = JSON.stringify({ type: 'chat_reply', answer: 'x', proposals: [{ kind: 'TASK', title: 't', text: 'x', assignee: 'ana' }] });
-      t.llm.enqueueText(bad, bad);
-      const res = await s.ana.client.post(`${p()}/agent/chat`, { message: 'Hola' });
-      expect(res.statusCode).toBe(502);
-      expect(await getTestDb().aiSuggestion.count()).toBe(0);
+    it('si el modelo intenta asignar a una persona, ese campo se ignora: la tarea se propone sin responsable', async () => {
+      t.llm.enqueueText(JSON.stringify({ type: 'chat_reply', answer: 'x', proposals: [{ kind: 'TASK', title: 'Diseñar', text: 'x', assignee: 'ana', assigneeId: s.ana.id }] }));
+      const [task] = (await preguntar('Hola')).proposals;
+      expect(JSON.stringify(task)).not.toMatch(/assignee/);
+      const res = (await resolver(task!.id, { action: 'ACCEPT', confirm: true })).json() as Resolved;
+      expect((await getTestDb().sprintTask.findUniqueOrThrow({ where: { id: res.result.id! } })).assigneeId).toBeNull();
     });
   });
 
@@ -267,7 +280,7 @@ describe('asistente: contexto de documentos y sugerencias revisables', () => {
       expect(res.revalidation!.attemptNo).toBe(2); // la evaluación inicial del escenario fue el intento 1
     });
 
-    it('conflicto de versión: si el elemento cambió después de la propuesta, NO se sobrescribe y la propuesta sigue pendiente', async () => {
+    it('si el elemento cambió después de la propuesta, los criterios se SUMAN a lo vigente sin perder el cambio ajeno', async () => {
       const [, criteria] = (await preguntar(PROPONER)).proposals;
       const item = (await s.ana.client.get(`${p()}/backlog/${s.storyId}`)).json() as { version: number; kind: string; title: string; asA: string; iWant: string; soThat: string; priority: number; acceptanceCriteria: string[] };
       const edit = await s.ana.client.patch(`${p()}/backlog/${s.storyId}`, {
@@ -276,20 +289,28 @@ describe('asistente: contexto de documentos y sugerencias revisables', () => {
         asA: item.asA,
         iWant: item.iWant,
         soThat: item.soThat,
-        acceptanceCriteria: item.acceptanceCriteria,
+        acceptanceCriteria: [...item.acceptanceCriteria, 'Criterio añadido a mano por el equipo'],
         priority: item.priority,
         expectedVersion: item.version,
       });
       expect(edit.statusCode, edit.body).toBe(200);
 
       const res = await resolver(criteria!.id, { action: 'ACCEPT', confirm: true });
-      expect(res.statusCode).toBe(409);
-      expect(res.json().code).toBe('VERSION_CONFLICT');
-      expect(res.json().current.title).toBe('Cambiado por el equipo mientras tanto');
+      expect(res.statusCode, res.body).toBe(200);
       const after = await getTestDb().backlogItem.findUniqueOrThrow({ where: { id: s.storyId } });
-      expect(after.title).toBe('Cambiado por el equipo mientras tanto');
-      expect(after.acceptanceCriteria).toHaveLength(item.acceptanceCriteria.length);
-      expect(await getTestDb().aiSuggestion.findUniqueOrThrow({ where: { id: criteria!.id } })).toMatchObject({ status: 'PROPOSED' });
+      expect(after.title).toBe('Cambiado por el equipo mientras tanto'); // el cambio ajeno se conserva
+      expect(after.acceptanceCriteria).toEqual([...item.acceptanceCriteria, 'Criterio añadido a mano por el equipo', 'Se muestra un mensaje claro cuando falta información']);
+    });
+
+    it('se pueden aceptar varias propuestas seguidas de la misma respuesta (historia, criterios y tarea)', async () => {
+      await fillPlan(s);
+      const [story, criteria, task] = (await preguntar(PROPONER)).proposals;
+      for (const proposal of [criteria!, story!, task!]) {
+        const res = await resolver(proposal.id, { action: 'ACCEPT', confirm: true });
+        expect(res.statusCode, `${proposal.kind}: ${res.body}`).toBe(200);
+      }
+      expect(await backlogCount()).toBe(2);
+      expect(await getTestDb().sprintTask.count()).toBe(1);
     });
 
     it('al elegir otro destino se aplica sobre su versión vigente', async () => {

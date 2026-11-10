@@ -22,14 +22,29 @@ describe('salida de recomendaciones por campo', () => {
     expect(parsed.ok).toBe(true);
   });
 
-  it.each([
-    ['estado desconocido (p. ej. aprobar)', { fields: [{ field: 'title', status: 'APROBAR' }] }],
-    ['campo extra no permitido', { fields: [{ field: 'title', status: 'CHANGE', proposed: 'x', asignarA: 'ana' }] }],
-    ['identificador de criterio con formato inválido', { fields: [{ field: 'title', status: 'CHANGE', proposed: 'x', criterionIds: ['cualquier cosa'] }] }],
-    ['más de 12 campos', { fields: Array.from({ length: 13 }, (_, i) => ({ field: `f${i}`, status: 'NO_CHANGE' })) }],
-    ['propiedad desconocida en la raíz', { aprobada: true }],
-  ])('rechaza %s', (_caso, extra) => {
-    expect(parseAgentOutput('field_recommendations', reply(extra)).ok).toBe(false);
+  it('sanea: descarta entradas con estado desconocido, ignora campos extra y criterios mal formados, y limita a 12', () => {
+    const parsed = parseAgentOutput(
+      'field_recommendations',
+      reply({
+        aprobada: true,
+        fields: [
+          { field: 'title', status: 'APROBAR' },
+          { field: 'asA', status: 'change', proposed: 'x', asignarA: 'ana', criterionIds: ['cualquier cosa', 'STORY-03'] },
+          ...Array.from({ length: 13 }, (_, i) => ({ field: `f${i}`, status: 'NO_CHANGE' })),
+        ],
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value).not.toHaveProperty('aprobada');
+    expect(parsed.value.fields).toHaveLength(12);
+    expect(parsed.value.fields[0]).toEqual({ field: 'asA', status: 'CHANGE', proposed: 'x', criterionIds: ['STORY-03'] });
+    expect(parsed.value.fields.some((f) => f.field === 'title')).toBe(false); // «aprobar» no es un estado válido
+  });
+
+  it('sin la lista de campos, o con texto plano, no hay nada utilizable', () => {
+    expect(parseAgentOutput('field_recommendations', JSON.stringify({ type: 'field_recommendations', summary: 'x' })).ok).toBe(false);
+    expect(parseAgentOutput('field_recommendations', 'Todo bien.').ok).toBe(false);
   });
 
   it('una respuesta de otro tipo no se acepta como recomendación', () => {

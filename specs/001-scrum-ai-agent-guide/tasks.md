@@ -451,3 +451,18 @@ Task: "GateResultPanel y SourceBadge en frontend/src/components/validation/"
 - [ ] T175 Construir la imagen Docker (este equipo no tiene Docker) y comprobar que sirve API y estáticos desde el mismo origen
 - [ ] T176 Verificar la calidad de las recomendaciones por campo y de las citas con el proveedor real (T108) y calibrar el prompt `recommend.md`
 - [ ] T177 Decidir si el seguimiento debe poder editarse (hoy es un historial de solo inserción, así que solo recibe análisis asesor)
+
+
+---
+
+## Phase 13: Mejora 2026-11 (3) — usabilidad y robustez del asistente
+
+- [X] T178 Conflicto por campo al aplicar propuestas (se pueden aceptar varias seguidas del mismo artefacto) y fusión de criterios de aceptación; pruebas de regresión
+- [X] T179 Salida del modelo saneada (`agent/output.ts`), rescate de JSON cortado, texto plano en el chat, `failed_generation` del proveedor, `LLM_REASONING_EFFORT` y límite de salida por defecto de 1500
+- [X] T180 Contexto con el detalle de los elementos mencionados (HU-n) y lo guardado del Sprint (tareas, seguimiento, Review, retrospectiva)
+- [X] T181 Retirar la subida de archivos como evidencia (ruta, servicio y pantalla); se conserva la descarga de adjuntos existentes
+- [X] T182 Icono de ayuda «i» (`InfoTip`), `PageHeader`, campos obligatorios y errores en rojo (`FormField`)
+- [X] T183 Panel del asistente rediseñado: cabecera compacta, burbujas diferenciadas, Enter para enviar, detalles plegados, evaluación compacta, «Descartar todas»
+- [X] T184 Pruebas: unitarias (salida, adaptador del proveedor), integración (propuestas consecutivas, conflicto por campo, contexto) y e2e `us10-flujo-completo` (Sprint completo aceptando varias recomendaciones, chat, ayuda y campos en rojo)
+- [ ] T185 Verificar con el proveedor real (Groq) que las respuestas saneadas son útiles y ajustar `LLM_REASONING_EFFORT` / `LLM_MAX_OUTPUT_TOKENS`
+- [ ] T186 Decidir si la biblioteca de Documentación (subida de documentos del proyecto) también debe retirarse

@@ -76,11 +76,11 @@ test.describe('US8: equipo Scrum, documentación y asistente lateral', () => {
     const historia = PANEL(page).locator('[data-kind="STORY"]');
     await expect(historia).toContainText('Consultar el resumen semanal de asistencia');
     await expect(historia).toContainText('Inferencia de la IA');
-    await expect(historia).toContainText('Se creará la historia');
 
     // Aceptar exige revisar y confirmar; solo entonces se aplica.
-    await historia.getByRole('button', { name: 'Revisar y aceptar' }).click();
-    await expect(historia.getByText(/Se registrará quién lo hizo/)).toBeVisible();
+    await historia.getByRole('button', { name: 'Aceptar', exact: true }).click();
+    await expect(historia).toContainText('Se creará la historia'); // el efecto se muestra antes de confirmar
+    await expect(historia.getByText(/Se registrará que usted lo aplicó/)).toBeVisible();
     await historia.getByRole('button', { name: 'Confirmar y aplicar' }).click();
     await expect(PANEL(page).getByText(/La IA no aprueba compuertas/)).toBeVisible();
     await expect(PANEL(page).locator('[data-kind="STORY"]')).toHaveCount(0);
@@ -133,7 +133,7 @@ test.describe('US8: equipo Scrum, documentación y asistente lateral', () => {
 
     await preguntar(page, 'PROPUESTA-IA-SIMULADA ¿Cómo justificar una falta con certificado?');
     const respuesta = page.locator('[data-ai-reply]').last();
-    await respuesta.getByText('Contexto usado').click();
+    await respuesta.getByText('Detalles').click();
     await expect(respuesta).toContainText('Reglas del negocio');
     await expect(PANEL(page).locator('[data-kind="STORY"]').first()).toContainText('Reglas del negocio');
 
@@ -141,7 +141,7 @@ test.describe('US8: equipo Scrum, documentación y asistente lateral', () => {
     await expect(page.locator('[data-document]')).toContainText('Desactualizado');
     await preguntar(page, 'PROPUESTA-IA-SIMULADA ¿Cómo justificar una falta con certificado?');
     const ultima = page.locator('[data-ai-reply]').last();
-    await ultima.getByText('Contexto usado').click();
+    await ultima.getByText('Detalles').click();
     await expect(ultima).toContainText('No se consultaron documentos');
   });
 
@@ -218,17 +218,15 @@ test.describe('US8: equipo Scrum, documentación y asistente lateral', () => {
     await expect(dev).toContainText('Hecha 1');
   });
 
-  test('evidencia con archivo adjunto opcional, con autor, fecha y etapa', async ({ page, isMobile }) => {
+  test('evidencia de etapa: texto o enlace con autor, fecha y etapa; sin campo para adjuntar archivos', async ({ page, isMobile }) => {
     test.skip(isMobile === true, 'Flujo de escritorio.');
-    await nuevoProyecto(page, 'Evidencia con archivo');
+    await nuevoProyecto(page, 'Evidencia');
     await page.getByRole('button', { name: 'Crear Sprint' }).click();
     const planificacion = page.locator('[data-stage="PLANNING"]');
-    await planificacion.getByLabel('Adjuntar un archivo (opcional)').setInputFiles({ name: 'acta.md', mimeType: 'text/markdown', buffer: Buffer.from('# Acta de planning') });
+    await expect(planificacion.locator('input[type="file"]')).toHaveCount(0);
     await planificacion.getByLabel('Registrar evidencia').fill('Acta de la reunión');
     await planificacion.getByRole('button', { name: 'Registrar evidencia' }).click();
     await expect(planificacion).toContainText('Acta de la reunión');
-    await expect(planificacion).toContainText('Archivo adjunto: acta.md');
     await expect(planificacion).toContainText('Planificación del Sprint');
-    await expect(planificacion.getByText(/NO verifica su contenido/)).toBeVisible();
   });
 });

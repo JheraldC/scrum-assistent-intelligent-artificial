@@ -14,6 +14,7 @@ import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { Toast } from '../../components/ui/Toast';
 import { VersionConflictDialog } from '../../components/ui/VersionConflictDialog';
 import { GateStateBadge } from '../../components/validation/GateStateBadge';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
 
@@ -151,15 +152,11 @@ export function ReviewPage() {
 
   return (
     <section className="max-w-3xl">
-      <h2 className="mb-1 text-xl font-semibold">
-        {es.review.title} · {es.flow.sprintLabel} {sprint.number}
-      </h2>
-      <p className="mb-2 text-sm text-[var(--color-muted)]">{es.review.intro}</p>
+      <PageHeader title={`${es.review.title} · ${es.flow.sprintLabel} ${sprint.number}`} info={`${es.review.intro} ${es.review.gateInfo}`} />
       <CeremonyHelp ceremony="REVIEW" />
       <p className="mb-2">
         <GateStateBadge state={review.gateState} />
       </p>
-      <p className="mb-4 text-sm text-[var(--color-muted)]">{es.review.gateInfo}</p>
 
       <div className="mb-4 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
         <h3 className="text-sm font-medium">{es.review.sprintGoal}</h3>

@@ -9,6 +9,7 @@ import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { FormField } from '../../components/ui/FormField';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { Toast } from '../../components/ui/Toast';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { es } from '../../i18n/es';
 import { useProject } from './ProjectLayout';
 
@@ -46,7 +47,7 @@ export function MembersPage() {
 
   return (
     <section>
-      <h2 className="mb-3 text-xl font-semibold">{es.members.title}</h2>
+      <PageHeader title={es.members.title} info={es.members.responsibilitiesHelp} />
       {loading ? <LoadingSkeleton /> : null}
       {error ? <ErrorBanner message={error.message} onRetry={reload} /> : null}
       {failure && Object.keys(failure.fields).length === 0 ? <ErrorBanner message={failure.message} /> : null}
@@ -136,7 +137,6 @@ export function MembersPage() {
         </div>
       ) : null}
 
-      <p className="mt-3 text-sm text-[var(--color-muted)]">{es.members.responsibilitiesHelp}</p>
       {isFacilitator ? (
         <form onSubmit={onAdd} noValidate className="mt-6 max-w-md">
           <h3 className="mb-2 text-lg font-semibold">{es.members.add}</h3>

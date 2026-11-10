@@ -33,7 +33,7 @@ test.describe('US3: planificación del Sprint con compuerta', () => {
     await expect(resultado.getByRole('heading', { level: 3 })).toContainText('No aprobada');
     await expect(resultado.getByText('Existe un Sprint Goal')).toBeVisible();
     await expect(resultado.getByText('No cumplido').first()).toBeVisible();
-    await expect(resultado.getByText('Oficial de Scrum').first()).toBeVisible();
+    await expect(resultado.getByText('Oficial de Scrum').first()).toBeVisible(); // PLAN-01 (oficial) no se cumple: queda a la vista
     await expect(page.getByRole('button', { name: 'Completar planificación' })).toBeDisabled();
     await expectAccessible(page);
 

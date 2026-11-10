@@ -7,6 +7,7 @@ import { StageStepper } from '../../components/flow/StageStepper';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { es } from '../../i18n/es';
 import { useProject } from '../projects/ProjectLayout';
 import { EvidenceBox } from './EvidenceBox';
@@ -46,10 +47,7 @@ export function FlowPage() {
 
   return (
     <section>
-      <h2 className="mb-1 text-xl font-semibold">
-        {es.flow.sprintLabel} {sprint.number}
-      </h2>
-      <p className="mb-4 text-sm text-[var(--color-muted)]">{es.flow.guideNote}</p>
+      <PageHeader title={`${es.flow.sprintLabel} ${sprint.number}`} info={es.flow.guideNote} />
       <StageStepper
         stages={sprint.stages}
         renderStage={(stage) => (

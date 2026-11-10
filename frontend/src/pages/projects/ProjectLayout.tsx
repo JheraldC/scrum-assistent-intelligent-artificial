@@ -23,7 +23,7 @@ export function useProject(): ProjectContextValue {
 }
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `px-3 py-2 rounded-md text-sm ${isActive ? 'bg-[var(--color-info-bg)] font-semibold text-[var(--color-info)]' : 'underline-offset-4 hover:underline'}`;
+  `px-2 py-1.5 rounded-md text-sm ${isActive ? 'bg-[var(--color-info-bg)] font-semibold text-[var(--color-info)]' : 'underline-offset-4 hover:underline'}`;
 
 /** Marco común de las pantallas de un proyecto: cabecera y navegación. */
 export function ProjectLayout() {

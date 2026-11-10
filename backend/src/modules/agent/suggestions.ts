@@ -75,19 +75,19 @@ interface Row {
 const ACTIONABLE: SuggestionKind[] = ['STORY', 'ACCEPTANCE_CRITERIA', 'TASK', 'FIELD_CHANGE'];
 export const isActionable = (kind: SuggestionKind) => ACTIONABLE.includes(kind);
 
-function effectOf(kind: SuggestionKind, p: SuggestionPayload, targetVersion: number | null): string {
+function effectOf(kind: SuggestionKind, p: SuggestionPayload): string {
   switch (kind) {
     case 'STORY':
       return `Se creará la historia «${p.title}» al final del Product Backlog y se evaluará con las reglas (la IA no aprueba nada).`;
     case 'ACCEPTANCE_CRITERIA':
       return p.itemCode
-        ? `Se añadirán ${p.acceptanceCriteria.length} criterio(s) de aceptación a ${p.itemCode}${targetVersion ? ` (versión ${targetVersion})` : ''} y se volverá a evaluar con las reglas. Si alguien cambió ese elemento antes, no se sobrescribirá: se le avisará del conflicto.`
+        ? `Se añadirán ${p.acceptanceCriteria.length} criterio(s) de aceptación a ${p.itemCode} (se suman a los que ya tenga) y se volverá a evaluar con las reglas.`
         : 'Elija el elemento al que se añadirán los criterios antes de aceptar.';
     case 'TASK':
       return `Se creará la tarea «${p.title}» en el Sprint abierto${p.itemCode ? `, dentro de ${p.itemCode}` : ''}, sin responsable asignado.`;
     case 'FIELD_CHANGE':
       return p.change
-        ? `Se reemplazará «${p.change.fieldLabel}» de ${p.change.artifactLabel} por el valor propuesto${targetVersion ? ` (se aplica sobre la versión ${targetVersion}; si cambió, no se sobrescribe)` : ''}${p.change.hasRules ? ' y se volverá a evaluar con las reglas' : ''}.`
+        ? `Se reemplazará «${p.change.fieldLabel}» de ${p.change.artifactLabel} por el valor propuesto${p.change.hasRules ? ' y se volverá a evaluar con las reglas' : ''}. Si ese campo cambió entretanto, no se sobrescribe.`
         : 'Se reemplazará el valor del campo por el propuesto.';
     default:
       return 'Es solo informativa: aceptarla la marca como revisada y no cambia nada del proyecto.';
@@ -113,7 +113,7 @@ export function toSuggestionDto(row: Row) {
     // «DOCUMENTO» solo si hay una cita verificada; si no, es una inferencia de la IA.
     basis: p.change ? p.change.basis : ((row.sources as SourceRef[] | null)?.length ?? 0) > 0 ? ('DOCUMENTO' as const) : ('INFERENCIA' as const),
     change: p.change ?? null,
-    effect: effectOf(row.kind, p, row.targetVersion),
+    effect: effectOf(row.kind, p),
     source: 'AI_RECOMMENDATION' as const,
     createdAt: row.createdAt.toISOString(),
     resolvedAt: row.resolvedAt?.toISOString() ?? null,
@@ -224,15 +224,15 @@ async function applyStory(tx: Tx, clock: Clock, userId: string, projectId: strin
   return { entity: 'backlog_item', id: item.id, gate: STORY_GATE(item.id) };
 }
 
-async function applyCriteria(tx: Tx, clock: Clock, userId: string, projectId: string, p: SuggestionPayload, row: { targetVersion: number | null; payload: unknown }): Promise<Applied> {
+async function applyCriteria(tx: Tx, clock: Clock, userId: string, projectId: string, p: SuggestionPayload): Promise<Applied> {
   if (!p.itemId) {
     throw AppError.validation('Elija el elemento al que se añadirán los criterios.', [{ field: 'itemId', message: 'Elija el elemento destino.' }]);
   }
   const item = await tx.backlogItem.findFirst({ where: { id: p.itemId, projectId } });
   if (!item) throw AppError.notFound('No se encontró el elemento del Product Backlog.');
-  const original = (row.payload as unknown as SuggestionPayload).itemId;
-  // Si el destino es el que vio la IA, se exige esa versión: un cambio ajeno produce un conflicto, no una sobrescritura.
-  const expectedVersion = original === p.itemId && row.targetVersion ? row.targetVersion : item.version;
+  // Añadir criterios es una fusión con los vigentes (no reemplaza nada), así que se aplica sobre la versión actual:
+  // se conservan los cambios que otra persona haya hecho entretanto y se pueden aceptar varias propuestas seguidas.
+  const expectedVersion = item.version;
   const merged = [...item.acceptanceCriteria, ...p.acceptanceCriteria.filter((c) => !item.acceptanceCriteria.includes(c))];
   const input = BacklogItemUpdateSchema.parse({
     kind: item.kind,
@@ -282,7 +282,19 @@ async function applyFieldChange(
   const list = asList(value);
   const gate = (gateId: GateId, targetType: TargetType, targetId: string): GateRef => ({ gateId, targetType, targetId });
   const done = (g: GateRef | null): Applied => ({ entity: 'artifact', id, gate: g });
-  const version = (current: number) => row.targetVersion ?? current;
+  /**
+   * Conflicto POR CAMPO: si el artefacto cambió desde la propuesta pero ESTE campo sigue igual que cuando
+   * se recomendó, se aplica sobre la versión vigente (así se pueden aceptar varias propuestas seguidas del
+   * mismo artefacto). Solo si alguien cambió este mismo campo se responde 409 y no se sobrescribe nada.
+   */
+  const norm = (v: FieldValue | null | undefined) => JSON.stringify(Array.isArray(v) ? v.map((x) => x.trim()).filter(Boolean) : (v ?? '').trim());
+  const version = (current: number, currentValue: FieldValue | null | undefined) => {
+    if (row.targetVersion === null || row.targetVersion === current) return current;
+    if (norm(currentValue) === norm(change.currentValue)) return current;
+    throw new AppError('VERSION_CONFLICT', 409, `«${change.fieldLabel}» cambió después de la recomendación. No se sobrescribió nada; pida una recomendación nueva o descarte esta.`, undefined, {
+      current: { field, value: currentValue ?? '' },
+    });
+  };
 
   switch (type) {
     case 'BACKLOG_ITEM': {
@@ -297,7 +309,7 @@ async function applyFieldChange(
         description: (field === 'description' ? text : item.description) ?? undefined,
         acceptanceCriteria: field === 'acceptanceCriteria' ? list : item.acceptanceCriteria,
         priority: item.priority,
-        expectedVersion: version(item.version),
+        expectedVersion: version(item.version, field === 'acceptanceCriteria' ? item.acceptanceCriteria : (item[field as 'title' | 'asA' | 'iWant' | 'soThat' | 'description'] ?? '')),
       });
       await updateItemInTx(tx, clock, userId, projectId, id, input);
       return done(STORY_GATE(id));
@@ -309,7 +321,7 @@ async function applyFieldChange(
         description: project.description,
         productGoal: field === 'productGoal' ? text : project.productGoal,
         definitionOfDone: field === 'definitionOfDone' ? text : project.definitionOfDone,
-        expectedVersion: version(project.version),
+        expectedVersion: version(project.version, field === 'productGoal' ? project.productGoal : project.definitionOfDone),
       });
       await updateProject(db, clock, userId, projectId, input);
       return done(null);
@@ -317,14 +329,14 @@ async function applyFieldChange(
     case 'SPRINT': {
       const sprint = await tx.sprint.findFirst({ where: { id, projectId } });
       if (!sprint) throw AppError.notFound('No se encontró el Sprint.');
-      const input = SprintUpdateSchema.parse({ [field]: text, expectedVersion: version(sprint.version) });
+      const input = SprintUpdateSchema.parse({ [field]: text, expectedVersion: version(sprint.version, field === 'sprintGoal' ? sprint.sprintGoal : sprint.workPlan) });
       await updateSprint(db, clock, userId, projectId, id, input);
       return done(gate('GATE-PLAN', 'SPRINT', id));
     }
     case 'SPRINT_TASK': {
       const task = await tx.sprintTask.findFirst({ where: { id, sprint: { projectId } } });
       if (!task) throw AppError.notFound('No se encontró la tarea.');
-      await updateTask(db, clock, userId, projectId, task.sprintId, id, { title: text, expectedVersion: version(task.version) });
+      await updateTask(db, clock, userId, projectId, task.sprintId, id, { title: text, expectedVersion: version(task.version, task.title) });
       return done(null);
     }
     case 'SPRINT_REVIEW': {
@@ -335,7 +347,7 @@ async function applyFieldChange(
         feedback: field === 'feedback' ? text : (review?.feedback ?? ''),
         goalAssessment: review?.goalAssessment ?? null,
         goalAssessmentNote: field === 'goalAssessmentNote' ? text : (review?.goalAssessmentNote ?? ''),
-        expectedVersion: version(review?.version ?? 1),
+        expectedVersion: version(review?.version ?? 1, review ? review[field as 'results' | 'increment' | 'feedback' | 'goalAssessmentNote'] : ''),
       });
       await updateReview(db, clock, userId, projectId, id, input);
       return done(gate('GATE-REVIEW', 'SPRINT_REVIEW', id));
@@ -346,7 +358,7 @@ async function applyFieldChange(
         positives: field === 'positives' ? list : (retro?.positives ?? []),
         problems: field === 'problems' ? list : (retro?.problems ?? []),
         improvements: field === 'improvements' ? list : (retro?.improvements ?? []),
-        expectedVersion: version(retro?.version ?? 1),
+        expectedVersion: version(retro?.version ?? 1, retro ? retro[field as 'positives' | 'problems' | 'improvements'] : []),
       });
       await updateRetrospective(db, clock, userId, projectId, id, input);
       return done(gate('GATE-RETRO', 'RETROSPECTIVE', id));
@@ -354,7 +366,7 @@ async function applyFieldChange(
     case 'RETRO_ACTION': {
       const action = await tx.retroAction.findFirst({ where: { id, retrospective: { sprint: { projectId } } }, include: { retrospective: { include: { sprint: true } } } });
       if (!action) throw AppError.notFound('No se encontró la acción.');
-      await updateAction(db, clock, userId, projectId, action.sprintId, id, { description: text, expectedVersion: version(action.version) });
+      await updateAction(db, clock, userId, projectId, action.sprintId, id, { description: text, expectedVersion: version(action.version, action.description) });
       return done(action.retrospective.sprint.status === 'OPEN' ? gate('GATE-RETRO', 'RETROSPECTIVE', action.sprintId) : null);
     }
     default:
@@ -433,7 +445,7 @@ export async function resolveSuggestion(
     };
     let applied: Applied = { entity: null, id: null, gate: null };
     if (row.kind === 'STORY') applied = await applyStory(tx, clock, userId, projectId, payload);
-    else if (row.kind === 'ACCEPTANCE_CRITERIA') applied = await applyCriteria(tx, clock, userId, projectId, payload, row);
+    else if (row.kind === 'ACCEPTANCE_CRITERIA') applied = await applyCriteria(tx, clock, userId, projectId, payload);
     else if (row.kind === 'TASK') applied = await applyTask(tx, clock, userId, projectId, payload);
     else if (row.kind === 'FIELD_CHANGE') applied = await applyFieldChange(tx, clock, userId, projectId, row, payload, edit.value);
 
